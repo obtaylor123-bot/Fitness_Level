@@ -1,0 +1,6 @@
+// DRAFT - requires legal review before release.
+import { BUSINESS_DETAILS } from '../config/business';
+
+export const TERMS_UPDATED = 'October 26, 2026';
+
+export const TERMS_OF_SERVICE = `Terms of Service\nLast updated: ${TERMS_UPDATED}\n\nDraft information about Fitness Level\nFitness Level records workouts, fitness preferences, progress, optional weight values, and local workout reminders. ${BUSINESS_DETAILS.name} is the placeholder for the app provider's business identity.\n\nCurrent app behavior\nThe app has no purchases, subscriptions, cloud account, cloud backup, or cross-device synchronization. Profile and workout data stays on the device. If you choose Google sign-in, the app uses Google's authentication flow and stores the returned name, email, and profile photo URL locally.\n\nThis screen is not a complete agreement. Before release, the app owner and qualified legal reviewer must provide and approve the terms that apply to this product and its users. No additional contract terms have been invented in this draft.\n\nContact\nBusiness: ${BUSINESS_DETAILS.name}\nSupport: ${BUSINESS_DETAILS.supportEmail}\nAddress: ${BUSINESS_DETAILS.physicalAddress}\nWebsite: ${BUSINESS_DETAILS.website}`;

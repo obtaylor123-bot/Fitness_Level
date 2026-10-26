@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Fitness Level",
+    "slug": "fitness-level",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-web-browser"
+    ]
+  }
+}
