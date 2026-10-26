@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { saveConsentAcceptedAt } from '../db/database';
+import { saveConsentAcceptedAt } from '../services/userData';
 import { MINIMUM_AGE } from '../config/business';
 import { colors, spacing } from '../theme';
 import { useStore } from '../store';
@@ -15,13 +15,15 @@ export default function ConsentScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const setConsentAcceptedAt = useStore((state) => state.setConsentAcceptedAt);
+  const authUserId = useStore((state) => state.authUserId);
 
   const accept = async () => {
     if (!ageConfirmed || !documentsAccepted || saving) return;
     setSaving(true);
     try {
       const acceptedAt = new Date().toISOString();
-      await saveConsentAcceptedAt(acceptedAt);
+      if (!authUserId) throw new Error('Sign in is required before saving consent.');
+      await saveConsentAcceptedAt(authUserId, acceptedAt);
       setConsentAcceptedAt(acceptedAt);
       setSaveError(false);
     } catch {
@@ -70,14 +72,14 @@ export default function ConsentScreen() {
         style={[styles.primaryButton, (!ageConfirmed || !documentsAccepted || saving) && styles.disabledButton]}
         accessibilityRole="button"
         accessibilityLabel="Continue to Fitness Level"
-        accessibilityHint="Stores the acceptance timestamp on this device"
+        accessibilityHint="Stores your acknowledgement and accepted document versions in your Supabase account"
         accessibilityState={{ disabled: !ageConfirmed || !documentsAccepted || saving }}
         disabled={!ageConfirmed || !documentsAccepted || saving}
         onPress={accept}
       >
         <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Continue'}</Text>
       </TouchableOpacity>
-      {saveError && <Text accessibilityRole="alert" style={styles.notice}>Your acknowledgement could not be saved on this device. Check that browser storage is available and try again.</Text>}
+      {saveError && <Text accessibilityRole="alert" style={styles.notice}>Your acknowledgement could not be saved to your account. Check your connection and try again.</Text>}
       <TouchableOpacity
         style={styles.secondaryButton}
         accessibilityRole="button"

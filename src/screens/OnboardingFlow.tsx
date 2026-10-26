@@ -3,11 +3,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
 import { colors, spacing } from '../theme';
-import { executeSql } from '../db/database';
 import { useStore } from '../store';
-import { generateUUID as uuidv4 } from '../utils/uuid';
-
-import { isGoogleSignInConfigured, promptGoogleSignIn } from '../services/authService';
+import { saveUserProfile } from '../services/userData';
+import { requireSupabase } from '../services/supabase';
 import TouchableOpacity from '../components/AccessibleTouchable';
 
 // Simple selectable button component
@@ -25,7 +23,7 @@ const SelectButton = ({ label, selected, onPress }: { label: string; selected: b
 );
 
 export default function OnboardingFlow() {
-  const { setUser } = useStore();
+  const { setUser, authUserId } = useStore();
   const [step, setStep] = useState(1);
   const [goal, setGoal] = useState('strength');
   const [equipment, setEquipment] = useState<string[]>([]);
@@ -37,26 +35,19 @@ export default function OnboardingFlow() {
     );
   };
 
-  const [googleUser, setGoogleUser] = useState<any>(null);
-
-  const handleGoogleSignIn = async () => {
-    try {
-      const gUser = await promptGoogleSignIn();
-      if (gUser) {
-        setGoogleUser(gUser);
-        Alert.alert('Google Connected', `Signed in as ${gUser.name}`);
-      } else if (!isGoogleSignInConfigured()) {
-        Alert.alert('Google sign-in unavailable', 'You can continue as a guest. Google sign-in requires app credentials to be configured.');
-      }
-    } catch {
-      Alert.alert('Error', 'Google Sign-In failed');
-    }
-  };
-
   const finish = async () => {
-    const userId = uuidv4();
+    if (!authUserId) {
+      Alert.alert('Sign in required', 'Return to the login screen and try again.');
+      return;
+    }
+    const { data: { user: authUser }, error: authError } = await requireSupabase().auth.getUser();
+    if (authError || !authUser) {
+      Alert.alert('Sign in required', 'Your login session could not be verified. Please sign in again.');
+      return;
+    }
+    const provider = authUser.app_metadata.provider;
     const profile = {
-      id: userId,
+      id: authUserId,
       goal,
       equipmentAvailable: equipment,
       experienceLevel: experience,
@@ -66,31 +57,13 @@ export default function OnboardingFlow() {
       longestStreak: 0,
       joinDate: new Date().toISOString(),
       notificationTime: '08:00',
-      email: googleUser?.email,
-      displayName: googleUser?.name,
-      photoUrl: googleUser?.photoUrl,
-      authProvider: googleUser ? ('google' as const) : ('guest' as const),
+      email: authUser.email,
+      displayName: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name,
+      photoUrl: authUser.user_metadata?.avatar_url,
+      authProvider: provider === 'google' ? ('google' as const) : ('email' as const),
     };
     try {
-      await executeSql(
-        `INSERT INTO user_profile (id, goal, equipmentAvailable, experienceLevel, currentXP, currentLevel, currentStreak, longestStreak, joinDate, notificationTime, email, displayName, photoUrl, authProvider) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-        [
-          profile.id,
-          profile.goal,
-          JSON.stringify(profile.equipmentAvailable),
-          profile.experienceLevel,
-          profile.currentXP,
-          profile.currentLevel,
-          profile.currentStreak,
-          profile.longestStreak,
-          profile.joinDate,
-          profile.notificationTime,
-          profile.email || null,
-          profile.displayName || null,
-          profile.photoUrl || null,
-          profile.authProvider,
-        ]
-      );
+      await saveUserProfile(profile);
       setUser(profile);
     } catch (e) {
       console.error('Failed to create user profile:', e);
@@ -104,27 +77,7 @@ export default function OnboardingFlow() {
       case 1:
         return (
           <View>
-            <View style={styles.googleSection}>
-              {googleUser ? (
-                <View style={styles.googleConnectedBox}>
-                  <Text style={styles.googleConnectedText}>
-                    ✓ Connected as {googleUser.name} ({googleUser.email})
-                  </Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.googleBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Quick sign in with Google"
-                  accessibilityHint="Opens Google sign-in if credentials are configured; you can also continue as a guest"
-                  onPress={handleGoogleSignIn}
-                >
-                  <Text style={styles.googleIcon}>G</Text>
-                  <Text style={styles.googleBtnText}>Quick Sign in with Google</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
+            <Text style={styles.accountNotice}>Your sign-in is ready. Set up your workout profile.</Text>
             <Text style={styles.title}>Select your fitness goal</Text>
             {['strength', 'cardio', 'mobility', 'general'].map((g) => (
               <SelectButton
@@ -271,38 +224,5 @@ const styles = StyleSheet.create({
     color: colors.textOnAccent,
     fontWeight: 'bold',
   },
-  googleSection: {
-    marginBottom: spacing(2),
-  },
-  googleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: spacing(1.2),
-    borderRadius: 6,
-    minHeight: 48,
-  },
-  googleIcon: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.googleBlue,
-    marginRight: spacing(1),
-  },
-  googleBtnText: {
-    color: '#1F1F1F',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  googleConnectedBox: {
-    backgroundColor: '#1E3A2F',
-    padding: spacing(1),
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  googleConnectedText: {
-    color: colors.accentSecondary,
-    fontWeight: 'bold',
-    fontSize: 13,
-  },
+  accountNotice: { color: colors.textSecondary, textAlign: 'center', marginBottom: spacing(2) },
 });

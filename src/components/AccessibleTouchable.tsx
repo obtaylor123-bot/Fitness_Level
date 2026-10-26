@@ -6,6 +6,7 @@ export default function AccessibleTouchable(props: TouchableOpacityProps) {
   return (
     <TouchableOpacity
       {...props}
+      style={[{ minHeight: 44 }, props.style]}
       accessible
       focusable
       accessibilityRole={props.accessibilityRole ?? 'button'}

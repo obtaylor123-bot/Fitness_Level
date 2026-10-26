@@ -1,7 +1,7 @@
 // App.tsx
 
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,16 +10,47 @@ import ProgressScreen from './src/screens/ProgressScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import OnboardingFlow from './src/screens/OnboardingFlow';
 import ConsentScreen from './src/screens/ConsentScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import LegacyImportScreen from './src/screens/LegacyImportScreen';
 import * as Notifications from 'expo-notifications';
 import { colors } from './src/theme';
 import { useStore } from './src/store';
 import { rehydrateStore } from './src/store/persist';
+import { isSupabaseConfigured, supabase } from './src/services/supabase';
 
 const Tab = createBottomTabNavigator();
 
 export default function App() {
-  const { user } = useStore();
-  const { hydrated, consentAcceptedAt } = useStore();
+  const { user, authUserId, authReady, hydrated, consentAcceptedAt, legacyImportAvailable } = useStore();
+  const { setAuthUserId, setAuthReady, clearUser, setConsentAcceptedAt, setHydrated, setLegacyImportAvailable } = useStore();
+
+  useEffect(() => {
+    if (isSupabaseConfigured) {
+      void supabase.auth.getSession().then(({ data, error }) => {
+        if (error) console.warn('Could not restore the sign-in session:', error.message);
+        setAuthUserId(data.session?.user.id ?? null);
+        setAuthReady(true);
+      });
+    } else {
+      setAuthReady(true);
+    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUserId(session?.user.id ?? null);
+      setAuthReady(true);
+      if (!session) {
+        clearUser();
+        setConsentAcceptedAt(null);
+        setLegacyImportAvailable(false);
+        setHydrated(true);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!authReady || !authUserId) return;
+    void rehydrateStore(authUserId).catch(() => undefined);
+  }, [authReady, authUserId]);
 
   // Restore a reminder only when it was explicitly enabled. Never ask permission on launch.
   useEffect(() => {
@@ -48,21 +79,19 @@ export default function App() {
         console.warn('Notifications not supported or permission denied:', err);
       }
     })();
-  }, [hydrated]);
+  }, [hydrated, user?.notificationsEnabled, user?.notificationTime]);
 
-  // Load persisted data on launch
-  useEffect(() => {
-    rehydrateStore();
-  }, []);
-
-  // Show onboarding until a profile exists
-  if (!hydrated) {
-    return null;
+  if (!authReady || (authUserId && !hydrated)) {
+    return <View style={styles.loading}><ActivityIndicator color={colors.accent} size="large" /></View>;
   }
+
+  if (!authUserId) return <LoginScreen />;
 
   if (!consentAcceptedAt) {
     return <ConsentScreen />;
   }
+
+  if (legacyImportAvailable) return <LegacyImportScreen />;
 
   if (!user) {
     return <OnboardingFlow />;
@@ -92,3 +121,7 @@ export default function App() {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+});

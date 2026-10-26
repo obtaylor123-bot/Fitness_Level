@@ -1,6 +1,30 @@
-// DRAFT - requires legal review before release.
+// DRAFT - business identity, hosted policy URL, and legal review remain required.
 import { BUSINESS_DETAILS } from '../config/business';
 
 export const PRIVACY_POLICY_UPDATED = 'October 26, 2026';
 
-export const PRIVACY_POLICY = `Privacy Policy\nLast updated: ${PRIVACY_POLICY_UPDATED}\n\n${BUSINESS_DETAILS.name} provides Fitness Level, a workout tracking app.\n\nInformation stored by the app\nThe app creates a local profile ID and stores the fitness goal, available equipment, experience level, XP and level progress, streaks, join date, and reminder settings. Workout sets and completion history are stored locally. Current weight, goal weight, and weight unit are optional. The app also stores the timestamp when you accepted the age and document acknowledgement. If you choose Google sign-in, the app receives and stores your Google name, email address, and profile photo URL to show your connected profile. It does not store the Google account ID or OAuth access token.\n\nWhere information is stored\nOn iOS and Android, this information is stored in the app's local SQLite database. In the web build, it is stored in this browser's localStorage. The app does not operate a server and does not upload your workout, profile, consent, or weight data. The app does not set cookies. When you use Google sign-in, Google handles authentication and the browser may use Google's own authentication cookies.\n\nGoogle sign-in\nIf you choose Google sign-in, the app opens Google's authentication flow and requests your basic profile and email. Google processes the authentication request under Google's own policies. The app receives the profile information described above and stores it locally. Google sign-in does not sync data across devices.\n\nNotifications\nIf you enable a workout reminder, the operating system schedules a local notification at the time you choose. Reminder content and scheduling stay on your device.\n\nYour choices and deletion\nWeight tracking is optional. Leave the weight fields blank or use “Turn off and clear weight tracking” to remove saved weights. Use “Delete my data” in Profile to remove your local profile, workout and XP history, weights, reminder settings, stored Google profile information, and consent record. Deletion also cancels scheduled app reminders and returns the app to its first-run screen. Static exercise and level catalog data are public app content and may remain on the device.\n\nContact\nBusiness: ${BUSINESS_DETAILS.name}\nSupport: ${BUSINESS_DETAILS.supportEmail}\nAddress: ${BUSINESS_DETAILS.physicalAddress}\nWebsite: ${BUSINESS_DETAILS.website}`;
+export const PRIVACY_POLICY = `Privacy Policy
+Last updated: ${PRIVACY_POLICY_UPDATED}
+
+${BUSINESS_DETAILS.name} provides Fitness Level, a workout tracking app.
+
+Information the app stores
+The app stores a profile identifier, fitness goal, selected equipment, experience level, XP, level progress, streaks, join date, and reminder settings. Workout sets and completion history are stored with your account. Current weight and goal weight are optional. The app also stores when you accepted the age and document acknowledgement. If you use Google sign-in, Google and Supabase Auth process the sign-in request. The app stores the account email, display name, and profile photo URL returned for your signed-in profile. Email/password sign-in is also provided through Supabase Auth.
+
+Where information is stored and sent
+Account, profile, workout, optional weight, and consent records are sent to and stored in the app owner's Supabase project. Supabase processes authentication and database requests for the app. The Supabase project owner and its authorized administrators can access that project data. On Android, the app stores the authentication session in Android's secure credential storage. If a web build is used, its authentication session is stored in browser localStorage. The app does not use cookies or web analytics. The app's public exercise catalog is bundled with the app and cached in local SQLite on Android.
+
+Google sign-in
+If you choose Google sign-in, the app opens Google's authentication flow through Supabase Auth and requests basic profile and email access. Google and Supabase process authentication information under their respective policies. The app then stores the resulting account profile fields and workout information in Supabase. Sign-in does not itself upload contacts or workout information to Google.
+
+Notifications
+If you enable a workout reminder, Android schedules a local notification at the time you choose. Reminder scheduling remains on your device.
+
+Your choices and deletion
+Weight tracking is optional. Leave the weight fields blank or use “Turn off and clear weight tracking” to remove saved weights. If this device has local data from an older version, you can import it into your signed-in account or choose to erase it before continuing. Use “Delete my data” in Profile to request deletion of your Supabase authentication account and its associated profile, workout, XP, weight, and consent records. This also cancels scheduled app reminders on the current device and clears the old local database. Account deletion requires an internet connection.
+
+Contact
+Business: ${BUSINESS_DETAILS.name}
+Support: ${BUSINESS_DETAILS.supportEmail}
+Address: ${BUSINESS_DETAILS.physicalAddress}
+Website: ${BUSINESS_DETAILS.website}`;

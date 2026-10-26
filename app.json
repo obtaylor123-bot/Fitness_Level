@@ -3,17 +3,46 @@
     "name": "Fitness Level",
     "slug": "fitness-level",
     "version": "0.1.0",
+    "scheme": "fitnesslevel",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "ios": {
-      "supportsTablet": true
-    },
+    "icon": "./assets/icon.png",
     "android": {
-      "predictiveBackGestureEnabled": false
+      "package": "com.fitnesslevel.tracker",
+      "versionCode": 1,
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#121214"
+      },
+      "permissions": ["android.permission.POST_NOTIFICATIONS"]
     },
     "plugins": [
       "expo-sqlite",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#121214"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#FF4757"
+        }
+      ]
     ]
   }
 }

@@ -16,7 +16,7 @@ import { generateDailySet } from '../services/dailySetGenerator';
 import { DailyExerciseEntry } from '../models/DailySet';
 import { colors, spacing } from '../theme';
 import { getLevelForXp, recordXpTransaction } from '../services/xpEngine';
-import { executeSql } from '../db/database';
+import { updateDailySet, updateUserProfile } from '../services/userData';
 import TouchableOpacity from '../components/AccessibleTouchable';
 
 export default function TodayScreen() {
@@ -63,10 +63,7 @@ export default function TodayScreen() {
 
   const persistDailySet = async (updatedSet: typeof dailySet) => {
     if (!updatedSet) return;
-    await executeSql(
-      `UPDATE daily_sets SET exercises = ?, totalXpEarned = ? WHERE id = ?;`,
-      [JSON.stringify(updatedSet.exercises), updatedSet.totalXpEarned, updatedSet.id]
-    );
+    await updateDailySet(updatedSet);
     setDailySet(updatedSet);
   };
 
@@ -101,15 +98,11 @@ export default function TodayScreen() {
         experienceLevel: selectedLevel,
       };
 
-      await executeSql(
-        `UPDATE user_profile SET goal = ?, equipmentAvailable = ?, experienceLevel = ? WHERE id = ?;`,
-        [
-          updatedUser.goal,
-          JSON.stringify(updatedUser.equipmentAvailable),
-          updatedUser.experienceLevel,
-          user.id,
-        ]
-      );
+      await updateUserProfile(user.id, {
+        goal: updatedUser.goal,
+        equipmentAvailable: updatedUser.equipmentAvailable,
+        experienceLevel: updatedUser.experienceLevel,
+      });
       setUser(updatedUser);
 
       // Immediately generate a new workout matching the new preferences
@@ -144,10 +137,12 @@ export default function TodayScreen() {
     const newStreak = (user.currentStreak ?? 0) + 1;
     const longestStreak = Math.max(user.longestStreak ?? 0, newStreak);
 
-    await executeSql(
-      `UPDATE user_profile SET currentXP = ?, currentLevel = ?, currentStreak = ?, longestStreak = ? WHERE id = ?;`,
-      [newXP, newLevel, newStreak, longestStreak, user.id]
-    );
+    await updateUserProfile(user.id, {
+      currentXP: newXP,
+      currentLevel: newLevel,
+      currentStreak: newStreak,
+      longestStreak,
+    });
     const updatedUser = {
       ...user,
       currentXP: newXP,

@@ -12,7 +12,7 @@ import {
 import { useStore } from '../store';
 import { colors, spacing } from '../theme';
 import { getXpForLevel } from '../services/xpEngine';
-import { executeSql } from '../db/database';
+import { getDailySets, getXpTransactions } from '../services/userData';
 import { BADGES, Badge } from '../data/badges';
 import TouchableOpacity from '../components/AccessibleTouchable';
 
@@ -53,35 +53,21 @@ export default function ProgressScreen() {
       setCurrentLevelXp(thisXp);
 
       // Workout history
-      const setsResult = await executeSql(
-        'SELECT * FROM daily_sets WHERE userId = ? ORDER BY date DESC LIMIT 30',
-        [user.id]
-      );
-      const history: WorkoutHistoryItem[] = setsResult.rows._array.map((row: any) => {
-        let exerciseCount = 0;
-        try {
-          const parsed = typeof row.exercises === 'string'
-            ? JSON.parse(row.exercises)
-            : row.exercises;
-          exerciseCount = Array.isArray(parsed) ? parsed.length : 0;
-        } catch {}
+      const sets = await getDailySets(user.id, 30);
+      const history: WorkoutHistoryItem[] = sets.map((row) => {
         return {
           id: row.id,
           date: row.date,
-          exerciseCount,
-          totalXpAvailable: row.totalXpAvailable ?? 0,
-          totalXpEarned: row.totalXpEarned ?? 0,
+          exerciseCount: row.exercises.length,
+          totalXpAvailable: row.totalXpAvailable,
+          totalXpEarned: row.totalXpEarned,
           completedAt: row.completedAt,
         };
       });
       setWorkoutHistory(history);
 
       // XP transaction log
-      const txResult = await executeSql(
-        'SELECT * FROM xp_transactions WHERE userId = ? ORDER BY date DESC LIMIT 30',
-        [user.id]
-      );
-      setXpLog(txResult.rows._array as XpTransaction[]);
+      setXpLog(await getXpTransactions(user.id, 30));
     } catch (e) {
       console.warn('ProgressScreen load error:', e);
     }
@@ -397,7 +383,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   badgeLockedText: {
-    color: '#555',
+    color: colors.textSecondary,
   },
 
   // History tabs

@@ -1,6 +1,7 @@
 // src/services/dailySetGenerator.ts
 
 import { executeSql } from '../db/database';
+import { getDailySetsByDates, getUserProfile, saveDailySet } from './userData';
 import { Exercise } from '../models/Exercise';
 import { DailySet, DailyExerciseEntry } from '../models/DailySet';
 import { UserProfile } from '../models/UserProfile';
@@ -12,35 +13,18 @@ import { subDays, formatISO } from 'date-fns';
  */
 export async function generateDailySet(userId: string, date: Date = new Date()): Promise<DailySet> {
   // Load user profile
-  const userRes = await executeSql('SELECT * FROM user_profile WHERE id = ?;', [userId]);
-  if (userRes.rows.length === 0) throw new Error('User profile not found');
-  const rawUser = userRes.rows.item(0);
+  const rawUser = await getUserProfile(userId);
+  if (!rawUser) throw new Error('User profile not found');
 
   // Normalize equipmentAvailable to an array of strings
-  let equipmentAvailable: string[] = [];
-  if (Array.isArray(rawUser.equipmentAvailable)) {
-    equipmentAvailable = rawUser.equipmentAvailable;
-  } else if (typeof rawUser.equipmentAvailable === 'string') {
-    try {
-      const parsed = JSON.parse(rawUser.equipmentAvailable);
-      equipmentAvailable = Array.isArray(parsed) ? parsed : [rawUser.equipmentAvailable];
-    } catch {
-      equipmentAvailable = rawUser.equipmentAvailable
-        .split(',')
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-    }
-  }
+  let equipmentAvailable: string[] = Array.isArray(rawUser.equipmentAvailable) ? rawUser.equipmentAvailable : [];
 
   // If user selected no equipment, default to bodyweight
   if (equipmentAvailable.length === 0) {
     equipmentAvailable = ['bodyweight'];
   }
 
-  const user: UserProfile = {
-    ...rawUser,
-    equipmentAvailable,
-  };
+  const user: UserProfile = { ...rawUser, equipmentAvailable };
 
   // Determine rest day (every 6th day)
   const joinTime = user.joinDate ? new Date(user.joinDate).getTime() : date.getTime();
@@ -49,27 +33,16 @@ export async function generateDailySet(userId: string, date: Date = new Date()):
 
   // Gather primary muscles used in the last 3 days
   const recentDates = [1, 2, 3].map(d => formatISO(subDays(date, d), { representation: 'date' }));
-  const placeholders = recentDates.map(() => '?').join(',');
-  const recentRows = await executeSql(
-    `SELECT exercises FROM daily_sets WHERE userId = ? AND date IN (${placeholders});`,
-    [userId, ...recentDates]
-  );
+  const recentSets = await getDailySetsByDates(userId, recentDates);
   const recentMuscles = new Set<string>();
-  for (let i = 0; i < recentRows.rows.length; i++) {
-    const row = recentRows.rows.item(i);
-    try {
-      const entries: DailyExerciseEntry[] = typeof row.exercises === 'string' ? JSON.parse(row.exercises) : row.exercises;
-      if (Array.isArray(entries)) {
-        for (const e of entries) {
-          const exRes = await executeSql('SELECT primaryMuscles FROM exercises WHERE id = ?;', [e.exerciseId]);
-          if (exRes.rows.length) {
-            const pcs = exRes.rows.item(0).primaryMuscles?.split(', ') ?? [];
-            pcs.forEach((m: string) => recentMuscles.add(m.trim().toLowerCase()));
-          }
-        }
+  for (const row of recentSets) {
+    const entries: DailyExerciseEntry[] = row.exercises;
+    for (const entry of entries) {
+      const exRes = await executeSql('SELECT primaryMuscles FROM exercises WHERE id = ?;', [entry.exerciseId]);
+      if (exRes.rows.length) {
+        const pcs = exRes.rows.item(0).primaryMuscles?.split(', ') ?? [];
+        pcs.forEach((m: string) => recentMuscles.add(m.trim().toLowerCase()));
       }
-    } catch {
-      // ignore parse issues
     }
   }
 
@@ -220,10 +193,7 @@ export async function generateDailySet(userId: string, date: Date = new Date()):
     totalXpEarned: 0,
   };
 
-  await executeSql(
-    `INSERT INTO daily_sets (id, userId, date, exercises, totalXpAvailable, totalXpEarned) VALUES (?, ?, ?, ?, ?, ?);`,
-    [dailySet.id, userId, dailySet.date, JSON.stringify(chosen), totalXpAvailable, 0]
-  );
+  await saveDailySet(dailySet);
 
   return dailySet;
 }

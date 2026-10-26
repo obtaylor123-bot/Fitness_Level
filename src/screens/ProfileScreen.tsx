@@ -17,14 +17,14 @@ import {
 import { useStore } from '../store';
 import * as Notifications from 'expo-notifications';
 import { colors, spacing } from '../theme';
-import { deleteAllUserData, executeSql } from '../db/database';
-import { isGoogleSignInConfigured, promptGoogleSignIn } from '../services/authService';
+import { requestAccountDeletion, updateUserProfile } from '../services/userData';
+import { signOut } from '../services/authService';
 import { BUSINESS_DETAILS } from '../config/business';
 import LegalDocumentModal, { LegalDocument } from '../components/LegalDocumentModal';
 import TouchableOpacity from '../components/AccessibleTouchable';
 
 export default function ProfileScreen() {
-  const { user, setUser, clearUser, setConsentAcceptedAt } = useStore();
+  const { user, setUser, clearUser, setConsentAcceptedAt, setAuthUserId } = useStore();
   const [notificationTime, setNotificationTime] = useState<string>('08:00');
   const [currentWeight, setCurrentWeight] = useState<string>('');
   const [targetWeight, setTargetWeight] = useState<string>('');
@@ -67,37 +67,15 @@ export default function ProfileScreen() {
     return () => subscription.remove();
   }, []);
 
-  // Google Sign-In Handler
-  const handleGoogleSignIn = async () => {
+  const handleSignOut = async () => {
     setLoading(true);
     try {
-      const googleUser = await promptGoogleSignIn();
-      if (googleUser && user) {
-        const updated = {
-          ...user,
-          email: googleUser.email,
-          displayName: googleUser.name,
-          photoUrl: googleUser.photoUrl,
-          authProvider: 'google' as const,
-        };
-
-        await executeSql(
-          `UPDATE user_profile SET email = ?, displayName = ?, photoUrl = ?, authProvider = ? WHERE id = ?;`,
-          [
-            updated.email,
-            updated.displayName,
-            updated.photoUrl,
-            updated.authProvider,
-            user.id,
-          ]
-        );
-        setUser(updated);
-        Alert.alert('Signed In', `Welcome back, ${googleUser.name}!`);
-      } else if (!isGoogleSignInConfigured()) {
-        Alert.alert('Google sign-in unavailable', 'Google sign-in requires app credentials to be configured.');
-      }
-    } catch (e) {
-      Alert.alert('Sign-In Error', 'Could not sign in with Google.');
+      await signOut();
+      clearUser();
+      setConsentAcceptedAt(null);
+      setAuthUserId(null);
+    } catch {
+      Alert.alert('Sign-out error', 'Could not securely sign out. Check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -105,7 +83,7 @@ export default function ProfileScreen() {
 
   const handleClearWeightData = async () => {
     if (!user) return;
-    await executeSql('UPDATE user_profile SET currentWeight = NULL, targetWeight = NULL WHERE id = ?;', [user.id]);
+    await updateUserProfile(user.id, { currentWeight: undefined, targetWeight: undefined });
     setCurrentWeight('');
     setTargetWeight('');
     setWeightTrackingEnabled(false);
@@ -155,7 +133,7 @@ export default function ProfileScreen() {
       }
       setNotificationPermission('granted');
       await scheduleReminder(notificationTime);
-      await executeSql('UPDATE user_profile SET notificationsEnabled = 1 WHERE id = ?;', [user.id]);
+      await updateUserProfile(user.id, { notificationsEnabled: true });
       setUser({ ...user, notificationsEnabled: true });
     } catch {
       Alert.alert('Reminder unavailable', 'The reminder could not be scheduled. Check notification settings and try again.');
@@ -166,7 +144,7 @@ export default function ProfileScreen() {
     if (!user) return;
     try {
       if (Platform.OS !== 'web') await Notifications.cancelAllScheduledNotificationsAsync();
-      await executeSql('UPDATE user_profile SET notificationsEnabled = 0 WHERE id = ?;', [user.id]);
+      await updateUserProfile(user.id, { notificationsEnabled: false });
       setUser({ ...user, notificationsEnabled: false });
     } catch {
       Alert.alert('Could not turn off reminder', 'Please try again.');
@@ -180,30 +158,13 @@ export default function ProfileScreen() {
   const deleteMyData = async () => {
     try {
       if (Platform.OS !== 'web') await Notifications.cancelAllScheduledNotificationsAsync();
-      await deleteAllUserData();
+      await requestAccountDeletion();
       clearUser();
       setConsentAcceptedAt(null);
+      setAuthUserId(null);
     } catch {
-      Alert.alert('Could not delete data', 'Some local data could not be removed. Please try again.');
+      Alert.alert('Could not delete account', 'Your account and cloud data could not be deleted. Check your connection and try again.');
     }
-  };
-
-  // Google Sign-Out Handler
-  const handleGoogleSignOut = async () => {
-    if (!user) return;
-    const updated = {
-      ...user,
-      email: undefined,
-      displayName: undefined,
-      photoUrl: undefined,
-      authProvider: 'guest' as const,
-    };
-    await executeSql(
-      `UPDATE user_profile SET email = NULL, displayName = NULL, photoUrl = NULL, authProvider = 'guest' WHERE id = ?;`,
-      [user.id]
-    );
-    setUser(updated);
-    Alert.alert('Signed Out', 'You are now browsing as a guest.');
   };
 
   // Save Goals & Notification settings
@@ -239,17 +200,12 @@ export default function ProfileScreen() {
     }
 
     // Update DB
-    await executeSql(
-      `UPDATE user_profile SET notificationTime = ?, currentWeight = ?, targetWeight = ?, weightUnit = ?, notificationsEnabled = ? WHERE id = ?;`,
-      [
-        notificationTime,
-        curWt !== undefined ? curWt : null,
-        tgtWt !== undefined ? tgtWt : null,
-        weightUnit,
-        user.notificationsEnabled ? 1 : 0,
-        user.id,
-      ]
-    );
+    await updateUserProfile(user.id, {
+      notificationTime,
+      currentWeight: curWt,
+      targetWeight: tgtWt,
+      weightUnit,
+    });
 
     // Update Zustand store
     const updatedUser = {
@@ -292,59 +248,35 @@ export default function ProfileScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.header}>Athlete Profile</Text>
 
-      {/* Account / Google Auth Card */}
+      {/* Account */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Account</Text>
-        {user.authProvider === 'google' && user.email ? (
-          <View style={styles.accountRow}>
-            {user.photoUrl ? (
-              <Image source={{ uri: user.photoUrl }} style={styles.avatar} accessibilityLabel={`${user.displayName || 'Google'} profile photo`} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarInitials}>
-                  {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'G'}
-                </Text>
-              </View>
-            )}
-            <View style={styles.accountInfo}>
-              <Text style={styles.accountName}>
-                {user.displayName || 'Google Athlete'}
-              </Text>
-              <Text style={styles.accountEmail}>{user.email}</Text>
-              <View style={styles.googleBadge}>
-                <Text style={styles.googleBadgeText}>✓ Connected with Google</Text>
-              </View>
+        <View style={styles.accountRow}>
+          {user.photoUrl ? (
+            <Image source={{ uri: user.photoUrl }} style={styles.avatar} accessibilityLabel={`${user.displayName || 'Google'} profile photo`} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarInitials}>{user.displayName?.charAt(0).toUpperCase() || (user.email?.charAt(0).toUpperCase() ?? 'A')}</Text>
             </View>
-            <TouchableOpacity
-              style={styles.signOutBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Sign out of Google"
-              accessibilityHint="Removes Google profile information saved in this app"
-              onPress={handleGoogleSignOut}
-            >
-              <Text style={styles.signOutBtnText}>Sign Out</Text>
-            </TouchableOpacity>
+          )}
+          <View style={styles.accountInfo}>
+            <Text style={styles.accountName}>{user.displayName || 'Fitness Level account'}</Text>
+            <Text style={styles.accountEmail}>{user.email || 'Signed in'}</Text>
+            <View style={styles.googleBadge}>
+              <Text style={styles.googleBadgeText}>✓ {user.authProvider === 'google' ? 'Google account' : 'Email account'} · synced with Supabase</Text>
+            </View>
           </View>
-        ) : (
-          <View>
-            <Text style={styles.subtext}>
-              Google sign-in is unavailable until app credentials are configured. Your profile is currently stored on this device.
-            </Text>
-            <TouchableOpacity
-              style={styles.googleSignInBtn}
-              accessibilityRole="button"
-              accessibilityLabel="Sign in with Google"
-              accessibilityHint="Opens Google sign-in if app credentials are configured"
-              onPress={handleGoogleSignIn}
-              disabled={loading}
-            >
-              <Text style={styles.googleIconText}>G</Text>
-              <Text style={styles.googleBtnText}>
-                {loading ? 'Connecting...' : 'Sign in with Google'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          <TouchableOpacity
+            style={styles.signOutBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out of your account"
+            accessibilityHint="Returns to the login screen"
+            onPress={handleSignOut}
+            disabled={loading}
+          >
+            <Text style={styles.signOutBtnText}>{loading ? 'Signing out…' : 'Sign Out'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Personal Goals: Weight Tracking Card */}
@@ -400,7 +332,7 @@ export default function ProfileScreen() {
               style={styles.weightInput}
               keyboardType="numeric"
               placeholder={`e.g. 175`}
-              placeholderTextColor="#777"
+              placeholderTextColor={colors.textSecondary}
               value={currentWeight}
               onChangeText={(value) => { setCurrentWeight(value); setWeightTrackingEnabled(Boolean(value) || Boolean(targetWeight)); }}
               accessibilityLabel="Current weight"
@@ -413,7 +345,7 @@ export default function ProfileScreen() {
               style={styles.weightInput}
               keyboardType="numeric"
               placeholder={`e.g. 165`}
-              placeholderTextColor="#777"
+              placeholderTextColor={colors.textSecondary}
               value={targetWeight}
               onChangeText={(value) => { setTargetWeight(value); setWeightTrackingEnabled(Boolean(value) || Boolean(currentWeight)); }}
               accessibilityLabel="Goal weight"
@@ -460,7 +392,7 @@ export default function ProfileScreen() {
             value={notificationTime}
             onChangeText={setNotificationTime}
             placeholder="08:00"
-            placeholderTextColor="#777"
+            placeholderTextColor={colors.textSecondary}
             accessibilityLabel="Daily workout reminder time, hours and minutes"
           />
         </View>
@@ -510,7 +442,7 @@ export default function ProfileScreen() {
         <Text style={styles.label}>Website: {BUSINESS_DETAILS.website}</Text>
       </View>
 
-      <TouchableOpacity style={styles.deleteButton} accessibilityRole="button" accessibilityLabel="Delete my data" accessibilityHint="Permanently removes local profile and activity after confirmation" onPress={confirmDeleteData}>
+      <TouchableOpacity style={styles.deleteButton} accessibilityRole="button" accessibilityLabel="Delete my data" accessibilityHint="Permanently deletes your account and cloud records after confirmation" onPress={confirmDeleteData}>
         <Text style={styles.deleteButtonText}>Delete my data</Text>
       </TouchableOpacity>
 
@@ -519,7 +451,7 @@ export default function ProfileScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.reminderDialog}>
             <Text style={styles.cardTitle}>Workout reminder</Text>
-            <Text style={styles.subtext}>Fitness Level can schedule one local daily notification at {notificationTime}. It stays on this device and does not send your workout data to a server. You can turn it off at any time.</Text>
+            <Text style={styles.subtext}>Fitness Level schedules one local daily notification at {notificationTime}. Your workout data is stored securely in your Supabase account. You can turn the reminder off at any time.</Text>
             <TouchableOpacity style={styles.primarySaveBtn} accessibilityRole="button" accessibilityLabel="Continue and request notifications" onPress={() => void enableReminder()}>
               <Text style={styles.primarySaveBtnText}>Continue</Text>
             </TouchableOpacity>
@@ -533,7 +465,7 @@ export default function ProfileScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.reminderDialog} accessible accessibilityViewIsModal accessibilityRole="alert" accessibilityLabel="Confirm permanent data deletion">
             <Text style={styles.cardTitle}>Delete my data?</Text>
-            <Text style={styles.subtext}>This permanently deletes your local profile, workout and XP history, weight entries, reminder settings and scheduled notifications, stored Google name/email/photo, and consent record. It cannot be undone. The public exercise catalog will remain on this device.</Text>
+            <Text style={styles.subtext}>This permanently deletes your Google or email sign-in account, stored sign-in session, profile, workout and XP history, weight entries, and consent record. It also cancels scheduled reminders on this device. It cannot be undone.</Text>
             <TouchableOpacity style={styles.deleteButton} accessibilityRole="button" accessibilityLabel="Confirm delete my data" accessibilityHint="Permanently deletes the listed local records" onPress={() => { setShowDeleteConfirmation(false); void deleteMyData(); }}>
               <Text style={styles.deleteButtonText}>Delete my data</Text>
             </TouchableOpacity>

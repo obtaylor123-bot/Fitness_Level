@@ -22,5 +22,5 @@ export interface UserProfile {
   email?: string;
   displayName?: string;
   photoUrl?: string;
-  authProvider?: 'google' | 'guest';
+  authProvider?: 'google' | 'email';
 }

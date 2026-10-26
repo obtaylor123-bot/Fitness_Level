@@ -2,6 +2,7 @@
 
 import { executeSql } from '../db/database';
 import { generateUUID as uuidv4 } from '../utils/uuid';
+import { recordXp } from './userData';
 
 /**
  * Calculate base XP for a completed exercise.
@@ -53,16 +54,12 @@ export async function getLevelForXp(xp: number): Promise<number> {
   return result.rows.length ? result.rows.item(0).level : 1;
 }
 
-/** Record an XP transaction in the `xp_transactions` table. */
+/** Record an XP transaction in the signed-in user's Supabase history. */
 export async function recordXpTransaction(
   userId: string,
   amount: number,
   source: string
 ) {
-  const date = new Date().toISOString();
   const id = uuidv4();
-  await executeSql(
-    `INSERT INTO xp_transactions (id, userId, date, amount, source) VALUES (?, ?, ?, ?, ?);`,
-    [id, userId, date, amount, source]
-  );
+  await recordXp(userId, id, amount, source);
 }

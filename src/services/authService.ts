@@ -1,112 +1,49 @@
-// src/services/authService.ts
-
-import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
-import { Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { requireSupabase, supabase } from './supabase';
 
-// Complete any pending auth sessions on web/native
 WebBrowser.maybeCompleteAuthSession();
 
-/**
- * Google OAuth Configuration Placeholders for App Store / Play Store Release.
- * In production, obtain these IDs from the Google Cloud Console:
- * 1. Web Client ID: For web & Expo Go proxy
- * 2. Android Client ID: For standalone Android app build (matching your SHA-1 and package name)
- * 3. iOS Client ID: For standalone iOS app build (matching your Bundle ID)
- */
-export const GOOGLE_CONFIG = {
-  webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
-  androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
-  iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
-};
+export const AUTH_REDIRECT_URI = AuthSession.makeRedirectUri({
+  scheme: 'fitnesslevel',
+  path: 'auth/callback',
+});
 
-export function isGoogleSignInConfigured(): boolean {
-  const clientId = Platform.select({
-    android: GOOGLE_CONFIG.androidClientId,
-    ios: GOOGLE_CONFIG.iosClientId,
-    default: GOOGLE_CONFIG.webClientId,
+export async function signInWithGoogle(): Promise<void> {
+  const client = requireSupabase();
+  const { data, error } = await client.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: AUTH_REDIRECT_URI, skipBrowserRedirect: true },
   });
-  return Boolean(
-    clientId && !clientId.startsWith('YOUR_') &&
-    GOOGLE_CONFIG.webClientId && !GOOGLE_CONFIG.webClientId.startsWith('YOUR_')
-  );
-}
-
-export interface GoogleAuthUser {
-  id: string;
-  email: string;
-  name: string;
-  photoUrl?: string;
-}
-
-/**
- * Initiates Google Sign-In.
- * Authentication is unavailable until a real OAuth client is configured. Never
- * substitute a fabricated identity: callers use this result to label profiles.
- */
-export async function promptGoogleSignIn(): Promise<GoogleAuthUser | null> {
-  const clientId = Platform.select({
-    android: GOOGLE_CONFIG.androidClientId,
-    ios: GOOGLE_CONFIG.iosClientId,
-    default: GOOGLE_CONFIG.webClientId,
-  });
-  if (!isGoogleSignInConfigured() || !clientId) return null;
-
-  try {
-      const redirectUri = AuthSession.makeRedirectUri({
-        scheme: 'fitnesslevel',
-      });
-
-      const discovery = {
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-        tokenEndpoint: 'https://oauth2.googleapis.com/token',
-        revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-      };
-
-      const request = new AuthSession.AuthRequest({
-        clientId,
-        scopes: ['openid', 'profile', 'email'],
-        redirectUri,
-        responseType: AuthSession.ResponseType.Code,
-        usePKCE: true,
-      });
-
-      const result = await request.promptAsync(discovery);
-
-      if (result.type === 'success' && result.params.code && request.codeVerifier) {
-        const tokenResponse = await AuthSession.exchangeCodeAsync(
-          {
-            clientId,
-            code: result.params.code,
-            redirectUri,
-            extraParams: { code_verifier: request.codeVerifier },
-          },
-          discovery
-        );
-        // Fetch user profile from Google UserInfo API
-        const userInfoResponse = await fetch(
-          'https://www.googleapis.com/userinfo/v2/me',
-          {
-            headers: { Authorization: `Bearer ${tokenResponse.accessToken}` },
-          }
-        );
-        if (!userInfoResponse.ok) {
-          throw new Error(`Google user info request failed (${userInfoResponse.status})`);
-        }
-        const userInfo = await userInfoResponse.json();
-        if (typeof userInfo.id !== 'string' || typeof userInfo.email !== 'string') {
-          throw new Error('Google returned an incomplete user profile');
-        }
-        return {
-          id: userInfo.id,
-          email: userInfo.email,
-          name: userInfo.name || userInfo.email.split('@')[0],
-          photoUrl: userInfo.picture,
-        };
-      }
-  } catch (e) {
-    console.warn('Google OAuth flow encountered error:', e);
-    throw e;
+  if (error) {
+    if (/provider.*(not enabled|disabled|not configured)|unsupported provider/i.test(error.message)) {
+      throw new Error('Google sign-in unavailable. Enable and configure the Google provider in Supabase Auth.');
+    }
+    throw error;
   }
-  return null;
+  if (!data.url) throw new Error('Supabase did not return a Google sign-in URL.');
+
+  const result = await WebBrowser.openAuthSessionAsync(data.url, AUTH_REDIRECT_URI);
+  if (result.type === 'success' && result.url) {
+    const { error: exchangeError } = await client.auth.exchangeCodeForSession(result.url);
+    if (exchangeError) throw exchangeError;
+  } else if (result.type === 'cancel' || result.type === 'dismiss') {
+    return;
+  } else {
+    throw new Error('Google sign-in did not complete. Check the Supabase and Google redirect settings.');
+  }
+}
+
+export async function signInWithEmail(email: string, password: string, createAccount: boolean): Promise<boolean> {
+  const client = requireSupabase();
+  const result = createAccount
+    ? await client.auth.signUp({ email, password })
+    : await client.auth.signInWithPassword({ email, password });
+  if (result.error) throw result.error;
+  return Boolean(result.data.session);
+}
+
+export async function signOut(): Promise<void> {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
 }

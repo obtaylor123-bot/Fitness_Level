@@ -36,3 +36,8 @@ yarn-debug.log*
 pnpm-debug.log*
 
 assets/free-exercise-db/.git
+assets/free-exercise-db/*
+!assets/free-exercise-db/LICENSE.md
+!assets/free-exercise-db/dist/
+assets/free-exercise-db/dist/*
+!assets/free-exercise-db/dist/exercises.json
