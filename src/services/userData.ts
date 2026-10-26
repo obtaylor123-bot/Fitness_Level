@@ -4,7 +4,6 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { DailySet } from '../models/DailySet';
 import { UserProfile } from '../models/UserProfile';
-import { MINIMUM_AGE } from '../config/business';
 import { clearLegacyLocalUserData } from '../db/database';
 import { generateUUID } from '../utils/uuid';
 import { requireSupabase, supabase } from './supabase';
@@ -32,7 +31,7 @@ type ProfileRow = {
   email: string | null;
   display_name: string | null;
   photo_url: string | null;
-  auth_provider: 'google' | 'email';
+  auth_provider: 'google' | 'email' | 'guest';
 };
 
 export function profileFromRow(row: ProfileRow): UserProfile {
@@ -241,7 +240,6 @@ export async function saveConsentAcceptedAt(userId: string, acceptedAt: string):
     .upsert({
       user_id: userId,
       accepted_at: acceptedAt,
-      minimum_age: MINIMUM_AGE,
       policy_version: '2026-10-26',
       terms_version: '2026-10-26',
     }, { onConflict: 'user_id' });

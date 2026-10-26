@@ -6,7 +6,7 @@ Draft answers below are inferred from current app code and require owner/legal r
 
 | Category | Data in this app | Purpose | Collected/shared |
 | --- | --- | --- | --- |
-| Personal info | Email, display name, profile photo URL (when Google provides them), account identifier, age/document acknowledgement | Account management, sign-in, saved profile | Sent to Supabase; Google processes sign-in only when selected |
+| Personal info | Email, display name, profile photo URL (when Google provides them), account identifier, policy/terms acknowledgement | Account management, sign-in, saved profile | Sent to Supabase; Google processes sign-in only when selected. Guest accounts use an anonymous account identifier without an email address. |
 | Health and fitness | Fitness goal, equipment, experience level, workout sets/history, completions, XP, level/streak metrics, optional current and target weight | App functionality and progress display | Sent to Supabase and stored in the app owner's project |
 | App activity | Workout selections and completion records | App functionality and progress | Sent to Supabase |
 | Device/app data | Local reminder time and enabled state | Schedule the user-requested local notification | Stored in the Supabase profile; scheduled reminder stays on device |
@@ -19,7 +19,8 @@ No advertising, analytics, or crash-reporting SDK is configured. No contacts, pr
 - Supabase and Google requests use HTTPS/TLS. Android sign-in sessions use Expo SecureStore; SecureStore's Android backup rules exclude its `SecureStore` shared preferences from cloud backup and device transfer.
 - Account deletion is offered in-app. A web request link is required by Google Play for account-creating apps; the draft page is `web/account-deletion.html` and is not yet hosted or functional until its placeholders and request handling are completed.
 - Active account records are intended to remain until the user requests deletion. Configure and disclose Supabase backup retention and deletion timing before launch; these project settings have not been inspected.
-- Consent age is self-attested (13+ in current code) and is not independently verified.
+- The app does not ask for or verify age. Confirm target audience and store disclosures before release.
+- Guest accounts are anonymous Supabase users. They cannot currently be linked to a permanent identity and may become inaccessible after sign-out, app-data clearing, or reinstall. Configure abuse controls for anonymous account creation; this app does not yet supply a CAPTCHA token.
 
 ## Android permission inventory from generated module manifests
 
@@ -39,4 +40,4 @@ This is a source-level inventory from the generated app manifest and installed E
 - Verify every answer against the deployed project and Play Console's current form.
 - Set the Supabase region, backups, retention, dashboard admin access, and processor/DPA review.
 - Publish a valid privacy policy and the working account-deletion request page; enter both URLs in Play Console.
-- Confirm the age/audience decision and whether the product is within Google Play Families scope.
+- Confirm target audience, age rating, and whether the product is within Google Play Families scope.

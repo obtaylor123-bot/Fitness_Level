@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import TouchableOpacity from '../components/AccessibleTouchable';
 import { colors, spacing } from '../theme';
-import { signInWithEmail, signInWithGoogle } from '../services/authService';
+import { signInAsGuest, signInWithEmail, signInWithGoogle } from '../services/authService';
 import { isSupabaseConfigured } from '../services/supabase';
-import { MINIMUM_AGE } from '../config/business';
 import LegalDocumentModal, { LegalDocument } from '../components/LegalDocumentModal';
 import { canStartAuthentication } from '../services/accessGate';
 
@@ -12,15 +11,14 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [createAccount, setCreateAccount] = useState(false);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [documentsAcknowledged, setDocumentsAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [document, setDocument] = useState<LegalDocument>(null);
 
   const run = async (action: () => Promise<void>) => {
-    if (!canStartAuthentication(ageConfirmed, documentsAcknowledged)) {
-      setMessage(`Confirm that you are at least ${MINIMUM_AGE} and acknowledge the Privacy Policy and Terms to continue.`);
+    if (!canStartAuthentication(documentsAcknowledged)) {
+      setMessage('Acknowledge the Privacy Policy and Terms to continue.');
       return;
     }
     if (!isSupabaseConfigured) {
@@ -59,19 +57,49 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
       <View style={styles.card}>
         <Text accessibilityRole="header" style={styles.title}>Fitness Level</Text>
-        <Text style={styles.subtitle}>Sign in to save your workouts securely and continue across devices.</Text>
+        <Text style={styles.subtitle}>Sign in to continue across devices, or use a guest account on this device.</Text>
+        <TouchableOpacity
+          style={styles.documentCheck}
+          accessibilityRole="checkbox"
+          accessibilityLabel="I have read and acknowledge the Privacy Policy and Terms of Service"
+          accessibilityState={{ checked: documentsAcknowledged }}
+          onPress={() => setDocumentsAcknowledged((value) => !value)}
+        >
+          <Text style={styles.checkMark}>{documentsAcknowledged ? '☑' : '☐'}</Text>
+          <Text style={styles.documentNote}>I have read and acknowledge the Privacy Policy and Terms of Service.</Text>
+        </TouchableOpacity>
+        <View style={styles.legalLinks}>
+          <TouchableOpacity style={styles.legalLink} accessibilityRole="button" accessibilityLabel="Read Privacy Policy before signing in" onPress={() => setDocument('privacy')}>
+            <Text style={styles.linkText}>Privacy Policy</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.legalLink} accessibilityRole="button" accessibilityLabel="Read Terms of Service before signing in" onPress={() => setDocument('terms')}>
+            <Text style={styles.linkText}>Terms of Service</Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity
           style={styles.googleButton}
           accessibilityLabel="Continue with Google"
           accessibilityHint="Opens Google through Supabase authentication"
-          disabled={busy || !canStartAuthentication(ageConfirmed, documentsAcknowledged)}
+          disabled={busy || !canStartAuthentication(documentsAcknowledged)}
           onPress={() => void run(signInWithGoogle)}
         >
           <Text style={styles.googleMark}>G</Text>
           <Text style={styles.googleText}>Continue with Google</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.guestButton}
+          accessibilityRole="button"
+          accessibilityLabel="Continue as guest"
+          accessibilityHint="Creates an anonymous Supabase account for this device"
+          disabled={busy || !canStartAuthentication(documentsAcknowledged)}
+          onPress={() => void run(signInAsGuest)}
+        >
+          <Text style={styles.guestText}>Continue as guest</Text>
+        </TouchableOpacity>
+        <Text style={styles.guestNote}>Guest progress is tied to this device. Signing out, clearing app data, or reinstalling may make the guest account inaccessible.</Text>
 
         <View style={styles.separator}><View style={styles.rule} /><Text style={styles.orText}>OR EMAIL</Text><View style={styles.rule} /></View>
         <TextInput
@@ -100,7 +128,7 @@ export default function LoginScreen() {
           onSubmitEditing={submitEmail}
           returnKeyType="go"
         />
-        <TouchableOpacity style={styles.primaryButton} accessibilityLabel={createAccount ? 'Create account with email' : 'Sign in with email'} disabled={busy || !canStartAuthentication(ageConfirmed, documentsAcknowledged)} onPress={submitEmail}>
+        <TouchableOpacity style={styles.primaryButton} accessibilityLabel={createAccount ? 'Create account with email' : 'Sign in with email'} disabled={busy || !canStartAuthentication(documentsAcknowledged)} onPress={submitEmail}>
           <Text style={styles.primaryText}>{createAccount ? 'Create account' : 'Sign in with email'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.linkButton} accessibilityLabel={createAccount ? 'Switch to sign in' : 'Switch to create an account'} onPress={() => setCreateAccount((value) => !value)}>
@@ -108,32 +136,11 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <Text style={styles.privacyNote}>Your profile and workout data are stored in your private Supabase account. Sign in with the same method to restore them on another device.</Text>
-        <View style={styles.legalLinks}>
-          <TouchableOpacity style={styles.legalLink} accessibilityRole="button" accessibilityLabel="Read Privacy Policy before signing in" onPress={() => setDocument('privacy')}>
-            <Text style={styles.linkText}>Privacy Policy</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.legalLink} accessibilityRole="button" accessibilityLabel="Read Terms of Service before signing in" onPress={() => setDocument('terms')}>
-            <Text style={styles.linkText}>Terms of Service</Text>
-          </TouchableOpacity>
-        </View>
         {busy && <ActivityIndicator color={colors.accent} style={styles.spinner} />}
         {message ? <Text accessibilityRole="alert" style={styles.message}>{message}</Text> : null}
-        {!isSupabaseConfigured && <Text accessibilityRole="alert" style={styles.configNotice}>Google sign-in and email sign-in are unavailable until the Supabase project URL and publishable key are configured for this build.</Text>}
-        <TouchableOpacity style={styles.ageCheck} accessibilityRole="checkbox" accessibilityLabel={`I confirm I am at least ${MINIMUM_AGE} years old`} accessibilityState={{ checked: ageConfirmed }} onPress={() => setAgeConfirmed((value) => !value)}>
-          <Text style={styles.checkMark}>{ageConfirmed ? '☑' : '☐'}</Text>
-          <Text style={styles.ageNote}>I confirm I am at least {MINIMUM_AGE} years old.</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.ageCheck}
-          accessibilityRole="checkbox"
-          accessibilityLabel="I have read and acknowledge the Privacy Policy and Terms of Service"
-          accessibilityState={{ checked: documentsAcknowledged }}
-          onPress={() => setDocumentsAcknowledged((value) => !value)}
-        >
-          <Text style={styles.checkMark}>{documentsAcknowledged ? '☑' : '☐'}</Text>
-          <Text style={styles.ageNote}>I have read and acknowledge the Privacy Policy and Terms of Service.</Text>
-        </TouchableOpacity>
+        {!isSupabaseConfigured && <Text accessibilityRole="alert" style={styles.configNotice}>Google, email, and guest sign-in are unavailable until the Supabase project URL and publishable key are configured for this build.</Text>}
       </View>
+      </ScrollView>
       <LegalDocumentModal document={document} onClose={() => setDocument(null)} />
     </KeyboardAvoidingView>
   );
@@ -141,6 +148,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, justifyContent: 'center', backgroundColor: colors.background, padding: spacing(2) },
+  scrollContent: { flexGrow: 1, justifyContent: 'center' },
   card: { width: '100%', maxWidth: 460, alignSelf: 'center', backgroundColor: colors.surface, borderRadius: 16, padding: spacing(3), borderWidth: 1, borderColor: colors.border },
   title: { color: colors.textPrimary, textAlign: 'center', fontSize: 30, fontWeight: '800', marginBottom: spacing(1) },
   subtitle: { color: colors.textSecondary, textAlign: 'center', fontSize: 15, lineHeight: 22, marginBottom: spacing(2.5) },
@@ -161,7 +169,10 @@ const styles = StyleSheet.create({
   spinner: { marginTop: spacing(1.5) },
   message: { color: colors.warning, fontSize: 14, textAlign: 'center', marginTop: spacing(1.5) },
   configNotice: { color: colors.warning, fontSize: 13, lineHeight: 18, textAlign: 'center', marginTop: spacing(1) },
-  ageNote: { color: colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: spacing(2) },
-  ageCheck: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: spacing(1) },
+  documentCheck: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: spacing(1) },
+  documentNote: { color: colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: spacing(2) },
   checkMark: { color: colors.accent, fontSize: 22, marginRight: spacing(1) },
+  guestButton: { minHeight: 48, justifyContent: 'center', alignItems: 'center', borderColor: colors.border, borderWidth: 1, borderRadius: 8, marginTop: spacing(1) },
+  guestText: { color: colors.textPrimary, fontWeight: '700', fontSize: 15 },
+  guestNote: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: spacing(1) },
 });

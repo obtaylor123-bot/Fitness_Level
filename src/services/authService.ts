@@ -43,6 +43,16 @@ export async function signInWithEmail(email: string, password: string, createAcc
   return Boolean(result.data.session);
 }
 
+export async function signInAsGuest(): Promise<void> {
+  const { error } = await requireSupabase().auth.signInAnonymously();
+  if (error) {
+    if (/anonymous.*(disabled|not enabled)|not enabled.*anonymous/i.test(error.message)) {
+      throw new Error('Guest sign-in is unavailable. Enable anonymous sign-ins in Supabase Auth.');
+    }
+    throw error;
+  }
+}
+
 export async function signOut(): Promise<void> {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;

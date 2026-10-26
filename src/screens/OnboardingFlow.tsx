@@ -60,7 +60,7 @@ export default function OnboardingFlow() {
       email: authUser.email,
       displayName: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name,
       photoUrl: authUser.user_metadata?.avatar_url,
-      authProvider: provider === 'google' ? ('google' as const) : ('email' as const),
+      authProvider: (authUser.is_anonymous ? 'guest' : provider === 'google' ? 'google' : 'email') as 'guest' | 'google' | 'email',
     };
     try {
       await saveUserProfile(profile);

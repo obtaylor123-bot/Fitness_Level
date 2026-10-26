@@ -10,8 +10,10 @@ Reviewed: October 26, 2026. This is a repository and local-tooling review. No li
 - Google sign-in uses the Supabase OAuth flow and `fitnesslevel://auth/callback`. Google client secrets belong in Supabase provider configuration, not in the app.
 - Android auth sessions use SecureStore. A recovery marker retries local deletion cleanup after cloud account deletion. Cloud deletion happens before local destructive cleanup, so a failed cloud request leaves local data and the session available for retry.
 - The Expo Go failure in the supplied screenshots was traced to Expo Notifications eagerly requiring `ExpoTopicSubscriptionModule`, which the installed Expo Go native client did not contain. `patches/expo-notifications+58.1.6.patch` applies the upstream optional-module behavior at install time. This enables local notification APIs in Expo Go; remote push notifications are not supported there. Confirm on the user's current Expo Go build and a standalone Android build.
-- Login requires self-confirmation of age 13+ and acknowledgement of the current privacy/terms documents before starting authentication. This is self-attestation, not age verification. The stated audience “everyone” needs a product decision for under-13 users and Google Play Families requirements before listing.
-- Account age and legal copy, contact/business identity, hosted privacy policy and web deletion request page remain drafts pending real business details, support process, and legal review.
+- Login has no age gate or age attestation. Acknowledgement of the privacy policy and terms is still required. The owner must set the store target audience and meet applicable rating/Family requirements.
+- Guest sign-in creates a Supabase anonymous user. The same owner-scoped RLS applies because anonymous Supabase users use the `authenticated` database role; guest accounts cannot currently be linked or recovered on another device after sign-out, app-data clearing, or reinstall.
+- Anonymous sign-in can be abused to create database users. Enable Supabase abuse monitoring/rate limits; CAPTCHA is not integrated and must not be required until the app can send a CAPTCHA token.
+- Legal copy, contact/business identity, hosted privacy policy, and web deletion request page remain drafts pending owner details, support process, and legal review.
 - The deletion function has no app-specific rate limiter. It requires a verified Supabase JWT and deletes only that authenticated account; enable platform abuse monitoring and consider request throttling if traffic or abuse warrants it.
 
 ## Automated verification
@@ -50,6 +52,7 @@ The project moved from SDK 57 to SDK 58 to match the installed Expo Go client sh
 | Typecheck, lint, Jest, Expo Doctor, dependency check | Passed locally; lint still reports 8 warnings |
 | Supabase RLS migration/function review and repeatable test | Code-reviewed and test script prepared; Supabase CLI/Docker unavailable, no database execution |
 | Account deletion and recovery | Code updated and unit-tested; deployed cloud and device paths need you |
+| Guest authentication and age gate removal | Supabase anonymous sign-in, guest profile persistence, sign-out warning, tests, and schema migration added; dashboard and device verification need you |
 | Privacy, terms, Play disclosures, deletion web stub | Drafts updated; owner details, legal review, hosting, Play Console setup need you |
 | Android release config and permissions | Source config reviewed; final AAB/merged manifest/signing need you |
 | Accessibility | Theme centralized and device plan added; selected theme contrast pairs measured; full TalkBack, keyboard, scaling, and touch-target review needs device verification |
@@ -61,8 +64,8 @@ Keep crash reporting out of the first release. Crash collection can improve diag
 
 ## Needs you — in order
 
-1. **Supabase/Auth:** create or select the release project and note project ref and region. Enable Google and email/password in Supabase Auth. Configure Google Cloud OAuth and store its client ID/secret only in Supabase. Allow `fitnesslevel://auth/callback` in Supabase redirects. Set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in each EAS development, preview, and production environment.
-2. **Local RLS verification:** install Docker and Supabase CLI, run `supabase start`, create two disposable users in its local Auth stack, then set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `RLS_TEST_USER_A_EMAIL`, `RLS_TEST_USER_A_PASSWORD`, `RLS_TEST_USER_B_EMAIL`, and `RLS_TEST_USER_B_PASSWORD` in the shell and run `node scripts/test-rls.mjs`. Fix any failure before proceeding.
+1. **Supabase/Auth:** create or select the release project and note project ref and region. Enable anonymous, Google, and email/password in Supabase Auth. Configure Google Cloud OAuth and store its client ID/secret only in Supabase. Allow `fitnesslevel://auth/callback` in Supabase redirects. Set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in each EAS development, preview, and production environment.
+2. **Local RLS verification:** install Docker and Supabase CLI, run `supabase start`, create two disposable users in its local Auth stack, then set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `RLS_TEST_USER_A_EMAIL`, `RLS_TEST_USER_A_PASSWORD`, `RLS_TEST_USER_B_EMAIL`, and `RLS_TEST_USER_B_PASSWORD` in the shell and run `node scripts/test-rls.mjs`. Fix any failure before proceeding. Apply migration `202610260002_guest_accounts_remove_age_gate.sql` so consent rows no longer store an age attestation and profile providers allow `guest`.
 3. **Production DB/function:** verify the active project ref before any write, then run `supabase login`, `supabase link --project-ref <release-project-ref>`, and `supabase db push`. Run `supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service-role-key>`. Set `DELETE_ACCOUNT_ALLOWED_ORIGINS` to the exact HTTPS web origin if needed, then run `supabase functions deploy delete-account`. Keep secrets out of this repo and all `EXPO_PUBLIC_*` values.
 4. **Staging verification:** test Google/email with two accounts and run the RLS script against a dedicated staging project. Review Supabase region, backups, retention, dashboard access, and processor/DPA terms.
 5. **Legal/Play:** replace placeholders below, obtain legal review, publish the policy and working external account deletion page, and enter both URLs in Play Console. Complete age rating, audience/Families determination, and Data Safety answers against deployed services.
@@ -81,5 +84,5 @@ Keep crash reporting out of the first release. Crash collection can improve diag
 - **SDK 58:** upgraded to match the installed Expo Go SDK; retain after release-like device testing.
 - **Crash reporting:** recommended to defer for first release.
 - **Web deletion:** choose a staffed email request workflow or verified self-service flow, then host and test it.
-- **Age/audience:** code requires self-attested 13+, while the product was described as for “everyone.” Decide whether under-13 users are excluded and assess Google Play Families requirements.
+- **Audience:** app no longer asks for or verifies age. Choose the store audience/rating and assess Google Play Families requirements; there is no in-app minimum-age rule.
 - **Retention/legal copy:** confirm actual Supabase backup deletion timing and have privacy/terms reviewed by qualified counsel.

@@ -12,7 +12,7 @@ describe('Supabase row mappings', () => {
       id: 'user-a', goal: 'strength', equipmentAvailable: ['dumbbell'], experienceLevel: 'beginner',
       currentXP: 30, currentLevel: 2, currentStreak: 3, longestStreak: 5, joinDate: '2026-10-26T00:00:00Z',
       notificationTime: '08:00', notificationsEnabled: true, currentWeight: 150, targetWeight: 145,
-      weightUnit: 'lbs' as const, email: 'a@example.test', displayName: 'Athlete', photoUrl: undefined, authProvider: 'email' as const,
+      weightUnit: 'lbs' as const, email: 'a@example.test', displayName: 'Athlete', photoUrl: undefined, authProvider: 'guest' as const,
     };
     expect(profileFromRow(profileToRow(profile))).toEqual(profile);
   });

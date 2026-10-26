@@ -5,7 +5,7 @@ The Android app uses Supabase Auth and Postgres for accounts, profiles, workout 
 ## 1. Create and configure the Supabase project
 
 1. Create a Supabase project and copy its project URL and publishable key into a local `.env` file based on `.env.example`.
-2. In **Authentication → Providers**, enable Google and email/password sign-in. Decide whether email confirmation is required.
+2. In **Authentication → Providers**, enable anonymous sign-ins, Google, and email/password sign-in. Decide whether email confirmation is required. Configure abuse monitoring and rate limits for anonymous account creation. Supabase recommends CAPTCHA/Turnstile protection; this app does not currently pass a CAPTCHA token, so do not require CAPTCHA until that integration is implemented.
 3. In **Authentication → URL Configuration**, allow the mobile callback `fitnesslevel://auth/callback`.
 4. In Google Cloud Console, configure the OAuth consent screen and a Web OAuth client. Add Supabase's callback URL (`https://<project-ref>.supabase.co/auth/v1/callback`) as an authorized redirect URI. Put the Google client ID and secret into Supabase's Google provider settings; do not put the client secret in the app.
 5. Build the Android app and record its package name and signing certificate SHA-1 if the Google provider setup requests them. The current package candidate is `com.fitnesslevel.tracker`; confirm it is available and keep it stable before publishing.
@@ -38,7 +38,7 @@ Do not paste the service-role key into source files or the app's `EXPO_PUBLIC_*`
 
 ## EAS environment values
 
-The `development`, `preview`, and `production` EAS profiles select corresponding EAS environments. Add `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` as public values in each environment in EAS project settings. No Supabase service-role key or Google client secret belongs in any EAS app environment. EAS secrets are not configured from this repository.
+The `development`, `preview`, and `production` EAS profiles select corresponding EAS environments. Add `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` as public values in each environment in EAS project settings. No Supabase service-role key or Google client secret belongs in any EAS app environment. EAS secrets are not configured from this repository. Apply all migrations, including `202610260002_guest_accounts_remove_age_gate.sql`, before enabling the guest build.
 
 `supabase/migrations/202610260001_initial_user_data.sql` creates the app data tables, revokes direct table privileges from `anon`, grants only to `authenticated`, and enables owner-only row-level security on every table. Exercise and level catalogs are not exposed through the Supabase API.
 

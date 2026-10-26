@@ -80,7 +80,7 @@ export default function LegacyImportScreen() {
         email: authUser.email,
         displayName: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name,
         photoUrl: authUser.user_metadata?.avatar_url,
-        authProvider: provider === 'google' ? 'google' : 'email',
+        authProvider: (authUser.is_anonymous ? 'guest' : provider === 'google' ? 'google' : 'email') as 'guest' | 'google' | 'email',
       };
       const consentAt = await getConsentAcceptedAt(authUserId);
       if (!consentAt) throw new Error('Review and acknowledge the current Privacy Policy and Terms before importing.');

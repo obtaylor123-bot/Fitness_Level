@@ -1,11 +1,11 @@
 # Fitness Level
 
-Fitness Level is an Android workout tracker built with Expo, React Native, and TypeScript. People can sign in with Google or an email/password account, set a fitness goal and equipment, follow generated daily workouts, and track progress, XP, streaks, badges, and optional weight goals.
+Fitness Level is an Android workout tracker built with Expo, React Native, and TypeScript. People can continue as a guest or sign in with Google or an email/password account, set a fitness goal and equipment, follow generated daily workouts, and track progress, XP, streaks, badges, and optional weight goals. Guest accounts are anonymous Supabase users tied to the current installation; they cannot currently be converted to a Google or email account.
 
 ## What the app stores
 
-- Supabase Auth manages Google and email/password accounts.
-- Supabase Postgres stores profiles, workout sets, XP history, optional weights, and age/document acknowledgements.
+- Supabase Auth manages guest, Google, and email/password accounts.
+- Supabase Postgres stores profiles, workout sets, XP history, optional weights, and policy/terms acknowledgements.
 - PostgreSQL row-level security restricts every user table to the signed-in account. The Android client contains only the Supabase publishable key; the service-role key is used only by the server-side account-deletion function.
 - Android stores the Supabase session in Expo SecureStore.
 - The public Free Exercise DB catalog is bundled with the app and cached locally in SQLite.
@@ -38,7 +38,7 @@ Follow [docs/supabase-setup.md](docs/supabase-setup.md) to create the Supabase p
 
 Copy `.env.example` to `.env` and enter the Supabase project URL and publishable key. Those are public app configuration values; never put the Supabase service-role key or Google client secret in the app. `.env` is ignored by Git.
 
-Email account creation may require email confirmation, depending on Supabase Auth settings. Google sign-in requires a configured Google provider and matching Supabase redirect allowlist. Those dashboard credentials are not stored in this repository.
+Enable anonymous sign-ins in Supabase Auth to use Continue as guest. Guest data is cloud-backed but is not recoverable on another device or after signing out, clearing app data, or reinstalling. Email account creation may require email confirmation, depending on Supabase Auth settings. Google sign-in requires a configured Google provider and matching Supabase redirect allowlist. Those dashboard credentials are not stored in this repository.
 
 ## Install and run
 
@@ -70,7 +70,7 @@ The project does not configure OTA updates or crash reporting. The final build, 
 
 ## Legal and privacy
 
-The privacy policy and terms are still drafts, and business/support contact values in `src/config/business.ts` are placeholders. Complete those and obtain legal review before public release. The app currently sets its age threshold to 13; age is self-attested, so confirm that this matches the intended audience and launch jurisdictions.
+The privacy policy and terms are still drafts, and business/support contact values in `src/config/business.ts` are placeholders. Complete those and obtain legal review before public release. The app does not ask for or verify age; confirm the intended audience, store age rating, and applicable launch requirements before release.
 
 ## Third-party data and licensing
 

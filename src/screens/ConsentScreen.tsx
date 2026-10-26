@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { saveConsentAcceptedAt } from '../services/userData';
-import { MINIMUM_AGE } from '../config/business';
 import { colors, spacing } from '../theme';
 import { useStore } from '../store';
 import LegalDocumentModal, { LegalDocument } from '../components/LegalDocumentModal';
 import TouchableOpacity from '../components/AccessibleTouchable';
 
 export default function ConsentScreen() {
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [documentsAccepted, setDocumentsAccepted] = useState(false);
-  const [declined, setDeclined] = useState(false);
   const [document, setDocument] = useState<LegalDocument>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -18,7 +15,7 @@ export default function ConsentScreen() {
   const authUserId = useStore((state) => state.authUserId);
 
   const accept = async () => {
-    if (!ageConfirmed || !documentsAccepted || saving) return;
+    if (!documentsAccepted || saving) return;
     setSaving(true);
     try {
       const acceptedAt = new Date().toISOString();
@@ -37,18 +34,8 @@ export default function ConsentScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text accessibilityRole="header" style={styles.title}>Before you continue</Text>
       <Text style={styles.body}>
-        Fitness Level is currently intended for people aged {MINIMUM_AGE} or older. Please confirm your age and review the draft privacy policy and terms.
+        Please review the draft Privacy Policy and Terms of Service before continuing.
       </Text>
-      <TouchableOpacity
-        style={styles.checkRow}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: ageConfirmed }}
-        accessibilityLabel={`I confirm I am ${MINIMUM_AGE} or older`}
-        accessibilityHint="Required to use the app"
-        onPress={() => { setAgeConfirmed(!ageConfirmed); setDeclined(false); }}
-      >
-        <Text style={styles.checkText}>{ageConfirmed ? '☑' : '☐'} I confirm I am {MINIMUM_AGE} or older</Text>
-      </TouchableOpacity>
       <TouchableOpacity
         style={styles.checkRow}
         accessibilityRole="checkbox"
@@ -69,31 +56,17 @@ export default function ConsentScreen() {
         </TouchableOpacity>
       </View>
       <TouchableOpacity
-        style={[styles.primaryButton, (!ageConfirmed || !documentsAccepted || saving) && styles.disabledButton]}
+        style={[styles.primaryButton, (!documentsAccepted || saving) && styles.disabledButton]}
         accessibilityRole="button"
         accessibilityLabel="Continue to Fitness Level"
         accessibilityHint="Stores your acknowledgement and accepted document versions in your Supabase account"
-        accessibilityState={{ disabled: !ageConfirmed || !documentsAccepted || saving }}
-        disabled={!ageConfirmed || !documentsAccepted || saving}
+        accessibilityState={{ disabled: !documentsAccepted || saving }}
+        disabled={!documentsAccepted || saving}
         onPress={accept}
       >
         <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Continue'}</Text>
       </TouchableOpacity>
       {saveError && <Text accessibilityRole="alert" style={styles.notice}>Your acknowledgement could not be saved to your account. Check your connection and try again.</Text>}
-      <TouchableOpacity
-        style={styles.secondaryButton}
-        accessibilityRole="button"
-        accessibilityLabel={`I am under ${MINIMUM_AGE}`}
-        accessibilityHint="Shows why app access is blocked"
-        onPress={() => setDeclined(true)}
-      >
-        <Text style={styles.body}>I am under {MINIMUM_AGE}</Text>
-      </TouchableOpacity>
-      {declined && (
-        <Text accessibilityRole="alert" style={styles.notice}>
-          You cannot continue because the app is currently intended for people aged {MINIMUM_AGE} or older. You may close the app.
-        </Text>
-      )}
       <LegalDocumentModal document={document} onClose={() => setDocument(null)} />
     </ScrollView>
   );
@@ -111,6 +84,5 @@ const styles = StyleSheet.create({
   primaryButton: { minHeight: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.accent, borderRadius: 8, marginTop: spacing(2) },
   disabledButton: { opacity: 0.5 },
   buttonText: { color: colors.textOnAccent, fontSize: 16, fontWeight: 'bold' },
-  secondaryButton: { minHeight: 48, justifyContent: 'center', alignItems: 'center', marginTop: spacing(1) },
   notice: { color: colors.warning, fontSize: 16, lineHeight: 24, marginTop: spacing(1) },
 });

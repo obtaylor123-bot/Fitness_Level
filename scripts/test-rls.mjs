@@ -42,7 +42,7 @@ try {
 
   const forbiddenInserts = [
     ['user_profiles', { id: idB, goal: 'general', equipment_available: ['bodyweight'], experience_level: 'beginner', auth_provider: 'email' }],
-    ['user_consents', { user_id: idB, accepted_at: new Date().toISOString(), minimum_age: 13, policy_version: 'rls-test', terms_version: 'rls-test' }],
+    ['user_consents', { user_id: idB, accepted_at: new Date().toISOString(), policy_version: 'rls-test', terms_version: 'rls-test' }],
     ['daily_sets', { id: uuid(), user_id: idB, date: '9999-12-31', exercises: [], total_xp_available: 0, total_xp_earned: 0 }],
     ['xp_transactions', { id: uuid(), user_id: idB, amount: 1, source: 'rls-test' }],
   ];
@@ -57,7 +57,7 @@ try {
   if (profile.error) throw new Error('Could not create user B test profile; use a disposable account with no profile.');
   fixture.profile = true;
   const consent = await userB.from('user_consents').insert({
-    user_id: idB, accepted_at: new Date().toISOString(), minimum_age: 13, policy_version: 'rls-test', terms_version: 'rls-test',
+    user_id: idB, accepted_at: new Date().toISOString(), policy_version: 'rls-test', terms_version: 'rls-test',
   });
   if (consent.error) throw new Error('Could not create user B test consent; use a disposable account with no consent row.');
   fixture.consent = true;

@@ -68,7 +68,7 @@ export default function ProfileScreen() {
     return () => subscription.remove();
   }, []);
 
-  const handleSignOut = async () => {
+  const performSignOut = async () => {
     setLoading(true);
     try {
       await signOut();
@@ -80,6 +80,21 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSignOut = () => {
+    if (user?.authProvider === 'guest') {
+      Alert.alert(
+        'Leave guest account?',
+        'This guest account cannot be recovered after signing out, clearing app data, or reinstalling. Delete it from this device if you want its cloud data removed.',
+        [
+          { text: 'Stay signed in', style: 'cancel' },
+          { text: 'Sign out', style: 'destructive', onPress: () => { void performSignOut(); } },
+        ],
+      );
+      return;
+    }
+    void performSignOut();
   };
 
   const handleClearWeightData = async () => {
@@ -255,8 +270,9 @@ export default function ProfileScreen() {
           <View style={styles.accountInfo}>
             <Text style={styles.accountName}>{user.displayName || 'Fitness Level account'}</Text>
             <Text style={styles.accountEmail}>{user.email || 'Signed in'}</Text>
+            {user.authProvider === 'guest' && <Text style={styles.subtext}>Guest accounts cannot be restored on another device or after signing out or reinstalling.</Text>}
             <View style={styles.googleBadge}>
-              <Text style={styles.googleBadgeText}>✓ {user.authProvider === 'google' ? 'Google account' : 'Email account'} · synced with Supabase</Text>
+              <Text style={styles.googleBadgeText}>✓ {user.authProvider === 'google' ? 'Google account' : user.authProvider === 'guest' ? 'Guest account' : 'Email account'} · synced with Supabase</Text>
             </View>
           </View>
           <TouchableOpacity
@@ -458,7 +474,7 @@ export default function ProfileScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.reminderDialog} accessible accessibilityViewIsModal accessibilityRole="alert" accessibilityLabel="Confirm permanent data deletion">
             <Text style={styles.cardTitle}>Delete my data?</Text>
-            <Text style={styles.subtext}>This permanently deletes your Google or email sign-in account, stored sign-in session, profile, workout and XP history, weight entries, and consent record. It also cancels scheduled reminders on this device. It cannot be undone.</Text>
+            <Text style={styles.subtext}>This permanently deletes your Google, email, or guest sign-in account, stored sign-in session, profile, workout and XP history, weight entries, and document acknowledgement. It also cancels scheduled reminders on this device. It cannot be undone.</Text>
             <TouchableOpacity style={styles.deleteButton} accessibilityRole="button" accessibilityLabel="Confirm delete my data" accessibilityHint="Permanently deletes the listed local records" accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => { setShowDeleteConfirmation(false); void deleteMyData(); }}>
               <Text style={styles.deleteButtonText}>{loading ? 'Deleting…' : 'Delete my data'}</Text>
             </TouchableOpacity>
