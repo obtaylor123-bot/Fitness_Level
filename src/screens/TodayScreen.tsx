@@ -51,8 +51,8 @@ export default function TodayScreen() {
         try {
           const set = await generateDailySet(user.id);
           setDailySet(set);
-        } catch (e) {
-          console.error('Error generating daily set:', e);
+        } catch {
+          console.error('Could not generate today\'s workout.');
         } finally {
           setLoading(false);
         }
@@ -74,8 +74,8 @@ export default function TodayScreen() {
       const set = await generateDailySet(user.id);
       setDailySet(set);
       Alert.alert('Updated', 'Generated a new workout routine!');
-    } catch (e) {
-      console.error('Error regenerating daily set:', e);
+    } catch {
+      console.error('Could not regenerate today\'s workout.');
     } finally {
       setLoading(false);
     }
@@ -110,8 +110,8 @@ export default function TodayScreen() {
       setDailySet(newSet);
       setShowPreferences(false);
       Alert.alert('Success', 'Preferences updated and new workout generated!');
-    } catch (e) {
-      console.error('Failed to update preferences:', e);
+    } catch {
+      console.error('Could not update workout preferences.');
       Alert.alert('Error', 'Could not save preferences.');
     } finally {
       setLoading(false);
@@ -166,12 +166,12 @@ export default function TodayScreen() {
   const getLevelBadge = (level?: string) => {
     switch (level?.toLowerCase()) {
       case 'expert':
-        return { bg: '#3D1B28', border: '#FF4757', text: '#FF6B81', icon: '⚡⚡⚡' };
+        return { bg: colors.levelHighSurface, border: colors.accent, text: colors.levelHighText, icon: '⚡⚡⚡' };
       case 'intermediate':
-        return { bg: '#362E1B', border: '#FFA502', text: '#FFC048', icon: '⚡⚡' };
+        return { bg: colors.levelMidSurface, border: colors.warning, text: colors.levelMidText, icon: '⚡⚡' };
       case 'beginner':
       default:
-        return { bg: '#183324', border: '#2ED573', text: '#7BED9F', icon: '⚡' };
+        return { bg: colors.levelLowSurface, border: colors.accentSecondary, text: colors.levelLowText, icon: '⚡' };
     }
   };
 
@@ -229,7 +229,7 @@ export default function TodayScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Today's Workout</Text>
+      <Text style={styles.header}>Today&apos;s Workout</Text>
 
       {/* Action buttons to change preferences or regenerate */}
       <View style={styles.topActionsRow}>
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing(1),
   },
   tag: {
-    backgroundColor: '#2A2A38',
+    backgroundColor: colors.card,
     borderRadius: 4,
     paddingVertical: 2,
     paddingHorizontal: 8,
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   catTag: {
-    backgroundColor: '#1E2D2F',
+    backgroundColor: colors.successTint,
   },
   tagText: {
     color: colors.accentSecondary,
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   doneBtn: {
-    backgroundColor: '#3A3A48',
+    backgroundColor: colors.mutedSurface,
   },
   btnText: {
     color: colors.textPrimary,
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     marginTop: spacing(2.5),
   },
   cancelBtn: {
-    backgroundColor: '#3A3A48',
+    backgroundColor: colors.mutedSurface,
     paddingVertical: spacing(1.2),
     paddingHorizontal: spacing(2.5),
     borderRadius: 8,

@@ -10,6 +10,10 @@
     "web": "expo start --web",
     "import-exercises": "ts-node scripts/import_exercises.ts",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "jest --watchAll=false",
+    "security:audit": "node scripts/check-audit.mjs",
+    "postinstall": "patch-package",
     "build:android:preview": "eas build --platform android --profile preview",
     "build:android:production": "eas build --platform android --profile production"
   },
@@ -41,10 +45,27 @@
     "uuid": "^14.0.2",
     "zustand": "^5.0.15"
   },
+  "jest": {
+    "preset": "jest-expo",
+    "testMatch": [
+      "**/?(*.)+(test).[jt]s?(x)"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/supabase/"
+    ]
+  },
   "devDependencies": {
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^26.6.2",
     "@types/react": "~19.3.0",
     "@types/uuid": "^10.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~58.0.4",
+    "expo-doctor": "^1.21.5",
+    "jest-expo": "~58.0.12",
+    "patch-package": "^8.0.1",
     "ts-node": "^10.9.2",
     "typescript": "~6.0.3"
   }

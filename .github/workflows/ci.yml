@@ -8,14 +8,18 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npx --yes expo-doctor
-      # Known high findings are documented in SECURITY.md; fail immediately on critical findings.
-      - run: npm audit --audit-level=critical
+      - run: npm run lint
+      - run: npm test
+      - run: npx expo-doctor
+      - run: npm run security:audit

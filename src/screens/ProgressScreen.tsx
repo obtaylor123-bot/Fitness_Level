@@ -68,8 +68,8 @@ export default function ProgressScreen() {
 
       // XP transaction log
       setXpLog(await getXpTransactions(user.id, 30));
-    } catch (e) {
-      console.warn('ProgressScreen load error:', e);
+    } catch {
+      console.warn('Could not load progress data.');
     }
   }, [user]);
 
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
 
   // XP card
   xpCard: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.progressSurface,
     borderRadius: 16,
     padding: spacing(2),
     marginBottom: spacing(2),
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   barBackground: {
     width: '100%',
     height: 18,
-    backgroundColor: '#333',
+    backgroundColor: colors.divider,
     borderRadius: 9,
     overflow: 'hidden',
     marginVertical: spacing(1),
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     marginTop: spacing(1.5),
     paddingTop: spacing(1),
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: colors.divider,
   },
   streakText: {
     fontSize: 13,
@@ -360,12 +360,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   badgeUnlocked: {
-    backgroundColor: '#1a2a1a',
+    backgroundColor: colors.progressSuccessSurface,
     borderColor: colors.accent + '88',
   },
   badgeLocked: {
-    backgroundColor: '#1a1a1a',
-    borderColor: '#333',
+    backgroundColor: colors.deepestSurface,
+    borderColor: colors.divider,
   },
   badgeIcon: {
     fontSize: 24,
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     marginBottom: spacing(1.5),
-    backgroundColor: '#111',
+    backgroundColor: colors.deepestSurface,
     borderRadius: 10,
     overflow: 'hidden',
   },
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#111',
+    backgroundColor: colors.deepestSurface,
     borderRadius: 10,
     padding: spacing(1.5),
     marginBottom: 8,

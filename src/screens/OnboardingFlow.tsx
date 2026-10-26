@@ -65,8 +65,8 @@ export default function OnboardingFlow() {
     try {
       await saveUserProfile(profile);
       setUser(profile);
-    } catch (e) {
-      console.error('Failed to create user profile:', e);
+    } catch {
+      console.error('Failed to create user profile.');
       Alert.alert('Error', 'Failed to create profile');
     }
   };

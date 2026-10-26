@@ -20,6 +20,26 @@ supabase link --project-ref <project-ref>
 supabase db push
 ```
 
+Use the SQL migration only against the intended project. Run `node scripts/test-rls.mjs` against a disposable local stack (see the account deletion checklist) before production. The script uses two regular test accounts and the publishable/anon key; it does not need or accept a service-role key.
+
+## Edge Function CORS and deletion
+
+The `delete-account` function verifies its caller and reads the service-role key only from Edge Function secrets. Native calls normally omit an `Origin` header. If you add a browser caller, set `DELETE_ACCOUNT_ALLOWED_ORIGINS` to a comma-separated list of exact HTTPS origins before deployment. The function rejects other browser origins. The web page in `web/account-deletion.html` currently sends a support-email request; it is not a direct API client.
+
+Deploy only after replacing the support placeholders and deciding how the web deletion requests will be identity-verified and completed:
+
+```sh
+supabase functions deploy delete-account
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+supabase secrets set DELETE_ACCOUNT_ALLOWED_ORIGINS=https://YOUR_PUBLIC_SITE
+```
+
+Do not paste the service-role key into source files or the app's `EXPO_PUBLIC_*` variables. Keep it in Supabase Function secrets.
+
+## EAS environment values
+
+The `development`, `preview`, and `production` EAS profiles select corresponding EAS environments. Add `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` as public values in each environment in EAS project settings. No Supabase service-role key or Google client secret belongs in any EAS app environment. EAS secrets are not configured from this repository.
+
 `supabase/migrations/202610260001_initial_user_data.sql` creates the app data tables, revokes direct table privileges from `anon`, grants only to `authenticated`, and enables owner-only row-level security on every table. Exercise and level catalogs are not exposed through the Supabase API.
 
 ## 3. Deploy secure account deletion

@@ -22,6 +22,7 @@ import { signOut } from '../services/authService';
 import { BUSINESS_DETAILS } from '../config/business';
 import LegalDocumentModal, { LegalDocument } from '../components/LegalDocumentModal';
 import TouchableOpacity from '../components/AccessibleTouchable';
+import { cancelWorkoutReminders, isValidReminderTime, scheduleDailyReminder } from '../services/reminders';
 
 export default function ProfileScreen() {
   const { user, setUser, clearUser, setConsentAcceptedAt, setAuthUserId } = useStore();
@@ -91,12 +92,7 @@ export default function ProfileScreen() {
   };
 
   const scheduleReminder = async (time: string) => {
-    const [hour, minute] = time.split(':').map(Number);
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    await Notifications.scheduleNotificationAsync({
-      content: { title: '🏋️ Ready for today’s workout?', body: 'Open Fitness Level for today’s set.' },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute },
-    });
+    await scheduleDailyReminder(time);
   };
 
   const enableReminder = async () => {
@@ -105,12 +101,7 @@ export default function ProfileScreen() {
       Alert.alert('Reminder unavailable', 'Workout reminders are available in the iOS and Android app.');
       return;
     }
-    if (!/^\d{2}:\d{2}$/.test(notificationTime)) {
-      Alert.alert('Invalid time', 'Set a valid reminder time before enabling reminders.');
-      return;
-    }
-    const [hour, minute] = notificationTime.split(':').map(Number);
-    if (hour > 23 || minute > 59) {
+    if (!isValidReminderTime(notificationTime)) {
       Alert.alert('Invalid time', 'Set a valid reminder time before enabling reminders.');
       return;
     }
@@ -143,7 +134,7 @@ export default function ProfileScreen() {
   const disableReminder = async () => {
     if (!user) return;
     try {
-      if (Platform.OS !== 'web') await Notifications.cancelAllScheduledNotificationsAsync();
+      if (Platform.OS !== 'web') await cancelWorkoutReminders();
       await updateUserProfile(user.id, { notificationsEnabled: false });
       setUser({ ...user, notificationsEnabled: false });
     } catch {
@@ -156,14 +147,23 @@ export default function ProfileScreen() {
   };
 
   const deleteMyData = async () => {
+    setLoading(true);
     try {
-      if (Platform.OS !== 'web') await Notifications.cancelAllScheduledNotificationsAsync();
-      await requestAccountDeletion();
+      const result = await requestAccountDeletion();
       clearUser();
       setConsentAcceptedAt(null);
       setAuthUserId(null);
+      if (!result.localRecordsCleared || !result.remindersCancelled || !result.localSessionCleared ||
+          (!result.localRecordsCleared || !result.remindersCancelled) && !result.recoveryMarkerSaved) {
+        Alert.alert(
+          'Account deleted; device cleanup needs attention',
+          'Your cloud account and records were deleted. Fitness Level will retry marked device cleanup when reopened. If the problem continues, clear the app storage and cancel any remaining Fitness Level reminder in Android settings.'
+        );
+      }
     } catch {
       Alert.alert('Could not delete account', 'Your account and cloud data could not be deleted. Check your connection and try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -175,15 +175,8 @@ export default function ProfileScreen() {
     }
 
     // Validate notification time HH:MM
-    if (!/^\d{2}:\d{2}$/.test(notificationTime)) {
+    if (!isValidReminderTime(notificationTime)) {
       Alert.alert('Invalid time', 'Please use HH:MM format (e.g. 08:30)');
-      return;
-    }
-    const [hourStr, minuteStr] = notificationTime.split(':');
-    const hour = parseInt(hourStr, 10);
-    const minute = parseInt(minuteStr, 10);
-    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-      Alert.alert('Invalid time', 'Hour must be 0-23 and minute 0-59');
       return;
     }
 
@@ -221,8 +214,8 @@ export default function ProfileScreen() {
     if (Platform.OS !== 'web' && user.notificationsEnabled) {
       try {
         await scheduleReminder(notificationTime);
-      } catch (err) {
-        console.warn('Could not reschedule notification:', err);
+    } catch {
+      console.warn('Could not reschedule the reminder.');
       }
     }
 
@@ -466,8 +459,8 @@ export default function ProfileScreen() {
           <View style={styles.reminderDialog} accessible accessibilityViewIsModal accessibilityRole="alert" accessibilityLabel="Confirm permanent data deletion">
             <Text style={styles.cardTitle}>Delete my data?</Text>
             <Text style={styles.subtext}>This permanently deletes your Google or email sign-in account, stored sign-in session, profile, workout and XP history, weight entries, and consent record. It also cancels scheduled reminders on this device. It cannot be undone.</Text>
-            <TouchableOpacity style={styles.deleteButton} accessibilityRole="button" accessibilityLabel="Confirm delete my data" accessibilityHint="Permanently deletes the listed local records" onPress={() => { setShowDeleteConfirmation(false); void deleteMyData(); }}>
-              <Text style={styles.deleteButtonText}>Delete my data</Text>
+            <TouchableOpacity style={styles.deleteButton} accessibilityRole="button" accessibilityLabel="Confirm delete my data" accessibilityHint="Permanently deletes the listed local records" accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => { setShowDeleteConfirmation(false); void deleteMyData(); }}>
+              <Text style={styles.deleteButtonText}>{loading ? 'Deleting…' : 'Delete my data'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.secondaryAction} accessibilityRole="button" accessibilityLabel="Cancel data deletion" onPress={() => setShowDeleteConfirmation(false)}>
               <Text style={styles.secondaryActionText}>Cancel</Text>
@@ -559,7 +552,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   googleBadge: {
-    backgroundColor: '#1E3A2F',
+    backgroundColor: colors.successSurface,
     paddingVertical: 2,
     paddingHorizontal: 6,
     borderRadius: 4,
@@ -572,7 +565,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   signOutBtn: {
-    backgroundColor: '#3A3A48',
+    backgroundColor: colors.mutedSurface,
     paddingVertical: spacing(0.8),
     paddingHorizontal: spacing(1.5),
     borderRadius: 6,
@@ -588,7 +581,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.googleWhite,
     paddingVertical: spacing(1.2),
     borderRadius: 8,
     marginTop: spacing(1),
@@ -601,7 +594,7 @@ const styles = StyleSheet.create({
     marginRight: spacing(1),
   },
   googleBtnText: {
-    color: '#1F1F1F',
+    color: colors.blackText,
     fontWeight: 'bold',
     fontSize: 15,
   },
@@ -656,7 +649,7 @@ const styles = StyleSheet.create({
   weightInput: {
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: '#16161D',
+    backgroundColor: colors.input,
     color: colors.textPrimary,
     borderRadius: 6,
     paddingVertical: spacing(0.8),
@@ -666,7 +659,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   goalBanner: {
-    backgroundColor: '#1E2D2F',
+    backgroundColor: colors.successTint,
     borderLeftWidth: 3,
     borderLeftColor: colors.accentSecondary,
     padding: spacing(1),
@@ -687,7 +680,7 @@ const styles = StyleSheet.create({
   timeInput: {
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: '#16161D',
+    backgroundColor: colors.input,
     color: colors.textPrimary,
     borderRadius: 6,
     paddingVertical: spacing(0.5),
@@ -725,6 +718,6 @@ const styles = StyleSheet.create({
   secondaryActionText: { color: colors.link, fontSize: 15, textDecorationLine: 'underline' },
   deleteButton: { minHeight: 48, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.danger, borderRadius: 8, marginVertical: spacing(1) },
   deleteButtonText: { color: colors.danger, fontSize: 16, fontWeight: 'bold' },
-  modalBackdrop: { flex: 1, justifyContent: 'center', backgroundColor: '#000000AA', padding: spacing(2) },
+  modalBackdrop: { flex: 1, justifyContent: 'center', backgroundColor: colors.overlay, padding: spacing(2) },
   reminderDialog: { backgroundColor: colors.surface, borderRadius: 12, padding: spacing(2) },
 });

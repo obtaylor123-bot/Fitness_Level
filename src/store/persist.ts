@@ -24,9 +24,9 @@ export async function rehydrateStore(userId: string): Promise<void> {
     } else {
       setDailySet(null);
     }
-  } catch (error) {
-    console.error('Could not load your account data:', error);
-    throw error;
+  } catch {
+    console.error('Could not load your account data.');
+    throw new Error('Could not load your account data.');
   } finally {
     setHydrated(true);
   }

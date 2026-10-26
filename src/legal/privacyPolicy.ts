@@ -20,6 +20,9 @@ If you choose Google sign-in, the app opens Google's authentication flow through
 Notifications
 If you enable a workout reminder, Android schedules a local notification at the time you choose. Reminder scheduling remains on your device.
 
+Age and retention
+Fitness Level is intended for people age 13 and older. The app asks users to confirm they meet this minimum age, but does not independently verify age. Do not use the app if you are under 13. Retention period: DRAFT. The app owner must confirm how long account data and backups are retained and when deletion is propagated for the configured Supabase project before release.
+
 Your choices and deletion
 Weight tracking is optional. Leave the weight fields blank or use “Turn off and clear weight tracking” to remove saved weights. If this device has local data from an older version, you can import it into your signed-in account or choose to erase it before continuing. Use “Delete my data” in Profile to request deletion of your Supabase authentication account and its associated profile, workout, XP, weight, and consent records. This also cancels scheduled app reminders on the current device and clears the old local database. Account deletion requires an internet connection.
 

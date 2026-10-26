@@ -6,19 +6,21 @@ import { signInWithEmail, signInWithGoogle } from '../services/authService';
 import { isSupabaseConfigured } from '../services/supabase';
 import { MINIMUM_AGE } from '../config/business';
 import LegalDocumentModal, { LegalDocument } from '../components/LegalDocumentModal';
+import { canStartAuthentication } from '../services/accessGate';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [createAccount, setCreateAccount] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [documentsAcknowledged, setDocumentsAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [document, setDocument] = useState<LegalDocument>(null);
 
   const run = async (action: () => Promise<void>) => {
-    if (!ageConfirmed) {
-      setMessage(`Confirm that you are at least ${MINIMUM_AGE} to continue.`);
+    if (!canStartAuthentication(ageConfirmed, documentsAcknowledged)) {
+      setMessage(`Confirm that you are at least ${MINIMUM_AGE} and acknowledge the Privacy Policy and Terms to continue.`);
       return;
     }
     if (!isSupabaseConfigured) {
@@ -64,7 +66,7 @@ export default function LoginScreen() {
           style={styles.googleButton}
           accessibilityLabel="Continue with Google"
           accessibilityHint="Opens Google through Supabase authentication"
-          disabled={busy || !ageConfirmed}
+          disabled={busy || !canStartAuthentication(ageConfirmed, documentsAcknowledged)}
           onPress={() => void run(signInWithGoogle)}
         >
           <Text style={styles.googleMark}>G</Text>
@@ -98,7 +100,7 @@ export default function LoginScreen() {
           onSubmitEditing={submitEmail}
           returnKeyType="go"
         />
-        <TouchableOpacity style={styles.primaryButton} accessibilityLabel={createAccount ? 'Create account with email' : 'Sign in with email'} disabled={busy || !ageConfirmed} onPress={submitEmail}>
+        <TouchableOpacity style={styles.primaryButton} accessibilityLabel={createAccount ? 'Create account with email' : 'Sign in with email'} disabled={busy || !canStartAuthentication(ageConfirmed, documentsAcknowledged)} onPress={submitEmail}>
           <Text style={styles.primaryText}>{createAccount ? 'Create account' : 'Sign in with email'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.linkButton} accessibilityLabel={createAccount ? 'Switch to sign in' : 'Switch to create an account'} onPress={() => setCreateAccount((value) => !value)}>
@@ -121,6 +123,16 @@ export default function LoginScreen() {
           <Text style={styles.checkMark}>{ageConfirmed ? '☑' : '☐'}</Text>
           <Text style={styles.ageNote}>I confirm I am at least {MINIMUM_AGE} years old.</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.ageCheck}
+          accessibilityRole="checkbox"
+          accessibilityLabel="I have read and acknowledge the Privacy Policy and Terms of Service"
+          accessibilityState={{ checked: documentsAcknowledged }}
+          onPress={() => setDocumentsAcknowledged((value) => !value)}
+        >
+          <Text style={styles.checkMark}>{documentsAcknowledged ? '☑' : '☐'}</Text>
+          <Text style={styles.ageNote}>I have read and acknowledge the Privacy Policy and Terms of Service.</Text>
+        </TouchableOpacity>
       </View>
       <LegalDocumentModal document={document} onClose={() => setDocument(null)} />
     </KeyboardAvoidingView>
@@ -132,9 +144,9 @@ const styles = StyleSheet.create({
   card: { width: '100%', maxWidth: 460, alignSelf: 'center', backgroundColor: colors.surface, borderRadius: 16, padding: spacing(3), borderWidth: 1, borderColor: colors.border },
   title: { color: colors.textPrimary, textAlign: 'center', fontSize: 30, fontWeight: '800', marginBottom: spacing(1) },
   subtitle: { color: colors.textSecondary, textAlign: 'center', fontSize: 15, lineHeight: 22, marginBottom: spacing(2.5) },
-  googleButton: { minHeight: 50, borderRadius: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  googleButton: { minHeight: 50, borderRadius: 8, backgroundColor: colors.googleWhite, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   googleMark: { color: colors.googleBlue, fontWeight: '800', fontSize: 19, marginRight: spacing(1) },
-  googleText: { color: '#1F1F1F', fontWeight: '700', fontSize: 15 },
+  googleText: { color: colors.blackText, fontWeight: '700', fontSize: 15 },
   separator: { flexDirection: 'row', alignItems: 'center', marginVertical: spacing(2) },
   rule: { height: 1, flex: 1, backgroundColor: colors.border },
   orText: { color: colors.textSecondary, fontSize: 12, marginHorizontal: spacing(1.5), fontWeight: '700' },

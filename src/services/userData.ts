@@ -1,10 +1,14 @@
 import { formatISO } from 'date-fns';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { DailySet } from '../models/DailySet';
 import { UserProfile } from '../models/UserProfile';
 import { MINIMUM_AGE } from '../config/business';
 import { clearLegacyLocalUserData } from '../db/database';
 import { generateUUID } from '../utils/uuid';
 import { requireSupabase, supabase } from './supabase';
+import { runAccountDeletion } from './accountDeletionFlow';
 
 function raise(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
@@ -54,7 +58,7 @@ export function profileFromRow(row: ProfileRow): UserProfile {
   };
 }
 
-function profileToRow(profile: UserProfile) {
+export function profileToRow(profile: UserProfile) {
   return {
     id: profile.id,
     goal: profile.goal,
@@ -113,7 +117,10 @@ export async function updateUserProfile(userId: string, patch: Partial<UserProfi
   raise(error);
 }
 
-function dailySetFromRow(row: any): DailySet {
+export function dailySetFromRow(row: {
+  id: string; user_id: string; date: string; exercises: DailySet['exercises'];
+  total_xp_available: number; total_xp_earned: number; completed_at: string | null;
+}): DailySet {
   return {
     id: row.id,
     userId: row.user_id,
@@ -125,7 +132,7 @@ function dailySetFromRow(row: any): DailySet {
   };
 }
 
-function dailySetToRow(set: DailySet) {
+export function dailySetToRow(set: DailySet) {
   return {
     id: set.id,
     user_id: set.userId,
@@ -241,12 +248,57 @@ export async function saveConsentAcceptedAt(userId: string, acceptedAt: string):
   raise(error);
 }
 
-export async function requestAccountDeletion(): Promise<void> {
-  const { error } = await requireSupabase().functions.invoke('delete-account', { body: {} });
-  raise(error);
+const PENDING_DELETION_CLEANUP_KEY = 'fitness_level_pending_deletion_cleanup';
+
+async function clearDeletedAccountDeviceData(): Promise<void> {
+  await clearLegacyLocalUserData();
+  if (Platform.OS !== 'web') await Notifications.cancelAllScheduledNotificationsAsync();
+}
+
+export async function hasPendingDeletionCleanup(): Promise<boolean> {
   try {
-    await clearLegacyLocalUserData();
-  } finally {
-    await supabase.auth.signOut({ scope: 'local' });
+    return (await SecureStore.getItemAsync(PENDING_DELETION_CLEANUP_KEY)) === 'pending';
+  } catch {
+    return false;
   }
+}
+
+/** Retries cleanup left over after cloud deletion succeeded but the device was unavailable. */
+export async function retryPendingDeletionCleanup(): Promise<void> {
+  if (!(await hasPendingDeletionCleanup())) return;
+  await clearDeletedAccountDeviceData();
+  await SecureStore.deleteItemAsync(PENDING_DELETION_CLEANUP_KEY);
+}
+
+export async function requestAccountDeletion() {
+  let recoveryMarkerSaved = false;
+  const result = await runAccountDeletion({
+    deleteCloudAccount: async () => {
+      const { error } = await requireSupabase().functions.invoke('delete-account', { body: {} });
+      if (error) throw new Error('The account deletion request could not be completed. Check your connection and retry.');
+      // Store a recovery marker before local cleanup; it is cleared only after all device data is removed.
+      try {
+        await SecureStore.setItemAsync(PENDING_DELETION_CLEANUP_KEY, 'pending');
+        recoveryMarkerSaved = true;
+      } catch {
+        // Continue cleanup even if secure local storage is unavailable.
+      }
+    },
+    clearLocalRecords: clearLegacyLocalUserData,
+    cancelReminders: async () => {
+      if (Platform.OS !== 'web') await Notifications.cancelAllScheduledNotificationsAsync();
+    },
+    signOutLocal: async () => {
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) throw error;
+    },
+  });
+  if (result.localRecordsCleared && result.remindersCancelled && recoveryMarkerSaved) {
+    try {
+      await SecureStore.deleteItemAsync(PENDING_DELETION_CLEANUP_KEY);
+    } catch {
+      // A stale marker only causes safe idempotent cleanup to run again at next launch.
+    }
+  }
+  return { ...result, recoveryMarkerSaved };
 }

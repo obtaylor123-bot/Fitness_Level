@@ -53,7 +53,9 @@ The `android` shortcut starts Expo for an Android emulator or device:
 npm run android
 ```
 
-The app uses Expo SDK 57 and requires a development build for standalone Google OAuth. Expo Go does not include the project-specific Android scheme. On upgrade, the app offers to import a previous local profile, workout and XP history, and optional weights into the Supabase account, or erase that old local data. TypeScript can be checked with `npm run typecheck`.
+The app uses Expo SDK 58. Google OAuth uses the project-specific Android scheme and should be verified in a development build. Android Expo Go can preview this app after applying the checked-in `expo-notifications` compatibility patch; Expo Go still does not support remote push notifications, though this app uses local reminders. On upgrade, the app offers to import a previous local profile, workout and XP history, and optional weights into the Supabase account, or erase that old local data.
+
+Run local checks with `npm run typecheck`, `npm run lint`, `npm test`, `npx expo-doctor`, and `npm run security:audit`. The SDK 58 project requires Node.js 22.14.0 or newer on the Node 22 line.
 
 ## Android release builds
 
