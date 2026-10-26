@@ -20,7 +20,9 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#121214"
       },
-      "permissions": ["android.permission.POST_NOTIFICATIONS"]
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
     "plugins": [
       "expo-sqlite",
@@ -42,7 +44,8 @@
           "icon": "./assets/icon.png",
           "color": "#FF4757"
         }
-      ]
+      ],
+      "expo-status-bar"
     ]
   }
 }
