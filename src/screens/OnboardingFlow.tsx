@@ -64,43 +64,7 @@ export default function OnboardingFlow() {
         authProvider: 'guest',
       };
 
-      if (isSupabaseConfigured) {
-        // Cloud path: also check actual auth user for provider info
-        try {
-          const { requireSupabase } = require('../services/supabase');
-          const { data: { user: authUser } } = await requireSupabase().auth.getUser();
-          if (authUser) {
-            const provider = authUser.app_metadata?.provider;
-            profile.authProvider = authUser.is_anonymous ? 'guest'
-              : provider === 'google' ? 'google'
-              : 'email';
-          }
-        } catch {}
-        await saveUserProfile(profile);
-      } else {
-        // Local SQLite path (guest mode)
-        const equipJson = JSON.stringify(equipment);
-        await executeSql(
-          `INSERT OR REPLACE INTO user_profile
-            (id, goal, equipmentAvailable, experienceLevel, currentXP, currentLevel,
-             currentStreak, longestStreak, joinDate, notificationTime, authProvider)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-          [
-            profile.id,
-            profile.goal,
-            equipJson,
-            profile.experienceLevel,
-            profile.currentXP,
-            profile.currentLevel,
-            profile.currentStreak,
-            profile.longestStreak,
-            profile.joinDate,
-            profile.notificationTime,
-            profile.authProvider,
-          ]
-        );
-      }
-
+      await saveUserProfile(profile);
       setUser(profile);
     } catch (err) {
       console.error('Failed to save profile:', err);

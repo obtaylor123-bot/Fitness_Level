@@ -18,12 +18,13 @@ import { useStore } from './src/store';
 import { rehydrateStore } from './src/store/persist';
 import { isSupabaseConfigured, supabase } from './src/services/supabase';
 import { retryPendingDeletionCleanup } from './src/services/userData';
+import { getSavedGuestProfile, isGuestId } from './src/utils/guestSession';
 
 const Tab = createBottomTabNavigator();
 
 export default function App() {
   const { user, authUserId, authReady, hydrated, consentAcceptedAt } = useStore();
-  const { setAuthUserId, setAuthReady, clearUser, setConsentAcceptedAt, setHydrated, setLegacyImportAvailable } = useStore();
+  const { setAuthUserId, setAuthReady, clearUser, setConsentAcceptedAt, setHydrated, setLegacyImportAvailable, setUser } = useStore();
 
   useEffect(() => {
     void (async () => {
@@ -33,39 +34,45 @@ export default function App() {
         console.warn('Could not finish pending on-device account cleanup.');
       }
 
-      if (isSupabaseConfigured) {
-        // Supabase path: restore existing cloud session
-        const { data, error } = await supabase.auth.getSession();
-        if (error) console.warn('Could not restore the sign-in session.');
-        const cloudUserId = data.session?.user.id ?? null;
-        setAuthUserId(cloudUserId);
-        setAuthReady(true);
-      } else {
-        // Local-only path: check if a local guest profile already exists
-        try {
-          const { executeSql, runMigrations } = require('./src/db/database');
-          await runMigrations();
-          const result = await executeSql('SELECT id FROM user_profile LIMIT 1;');
-          if (result.rows.length > 0) {
-            const localId = result.rows.item(0).id as string;
-            setAuthUserId(localId);
-            // Skip consent screen for returning local guests
-            setConsentAcceptedAt(new Date().toISOString());
-          }
-        } catch {
-          // No existing profile — user will see LoginScreen
+      // 1. Check if a guest profile is already saved on this device (no query, instantaneous!)
+      try {
+        const savedGuest = await getSavedGuestProfile();
+        if (savedGuest) {
+          setAuthUserId(savedGuest.id);
+          setUser(savedGuest);
+          setConsentAcceptedAt(new Date().toISOString());
+          setHydrated(true);
+          setAuthReady(true);
+          return;
         }
-        setAuthReady(true);
+      } catch {}
+
+      // 2. If no guest, check if Supabase has an active session
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          if (!error && data.session?.user.id) {
+            setAuthUserId(data.session.user.id);
+            setAuthReady(true);
+            return;
+          }
+        } catch {}
       }
+
+      // 3. First time on device / not logged in -> present LoginScreen
+      setAuthUserId(null);
+      setAuthReady(true);
     })();
 
     // Only subscribe to Supabase auth changes when configured
     if (!isSupabaseConfigured) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthUserId(session?.user.id ?? null);
-      setAuthReady(true);
-      if (!session) {
+      if (session?.user.id) {
+        setAuthUserId(session.user.id);
+        setAuthReady(true);
+      } else if (!isGuestId(useStore.getState().authUserId)) {
         clearUser();
+        setAuthUserId(null);
         setConsentAcceptedAt(null);
         setLegacyImportAvailable(false);
         setHydrated(true);
@@ -103,12 +110,12 @@ export default function App() {
   // Not signed in → Login screen
   if (!authUserId) return <LoginScreen />;
 
-  // Supabase users need consent screen; local guests skip it (consent implicit)
-  if (isSupabaseConfigured && !consentAcceptedAt) {
+  // Supabase cloud users need consent screen; local guests skip it
+  if (!isGuestId(authUserId) && isSupabaseConfigured && !consentAcceptedAt) {
     return <ConsentScreen />;
   }
 
-  // Need to set up workout profile
+  // Need to set up workout profile if user is still null
   if (!user) {
     return <OnboardingFlow />;
   }

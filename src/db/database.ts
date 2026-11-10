@@ -93,8 +93,13 @@ function executeWebCatalogQuery(sql: string, params: any[]): SQLResultSet {
 export async function executeSql(sql: string, params: any[] = []): Promise<SQLResultSet> {
   if (Platform.OS === 'web') return executeWebCatalogQuery(sql, params);
   const db = getNativeDb();
-  const rows = await db.getAllAsync(sql, params);
-  return result(rows);
+  const trimmed = sql.trim().toUpperCase();
+  if (trimmed.startsWith('SELECT') || trimmed.startsWith('PRAGMA')) {
+    const rows = await db.getAllAsync(sql, params);
+    return result(rows);
+  }
+  const res = await db.runAsync(sql, params);
+  return { insertId: res.lastInsertRowId, rowsAffected: res.changes, rows: { length: 0, item: () => null, _array: [] } };
 }
 
 export async function runMigrations(): Promise<void> {
@@ -114,6 +119,42 @@ export async function runMigrations(): Promise<void> {
       defaultDurationSec INTEGER
     );
     CREATE TABLE IF NOT EXISTS levels (level INTEGER PRIMARY KEY, requiredXp INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS user_profile (
+      id TEXT PRIMARY KEY,
+      goal TEXT,
+      equipmentAvailable TEXT,
+      experienceLevel TEXT,
+      currentXP INTEGER DEFAULT 0,
+      currentLevel INTEGER DEFAULT 1,
+      currentStreak INTEGER DEFAULT 0,
+      longestStreak INTEGER DEFAULT 0,
+      joinDate TEXT,
+      notificationTime TEXT DEFAULT '08:00',
+      notificationsEnabled INTEGER DEFAULT 0,
+      currentWeight REAL,
+      targetWeight REAL,
+      weightUnit TEXT DEFAULT 'lbs',
+      email TEXT,
+      displayName TEXT,
+      photoUrl TEXT,
+      authProvider TEXT DEFAULT 'guest'
+    );
+    CREATE TABLE IF NOT EXISTS daily_sets (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      date TEXT NOT NULL,
+      exercises TEXT NOT NULL,
+      totalXpAvailable INTEGER DEFAULT 0,
+      totalXpEarned INTEGER DEFAULT 0,
+      completedAt TEXT
+    );
+    CREATE TABLE IF NOT EXISTS xp_transactions (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      date TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      source TEXT
+    );
   `);
 
   const levels = await db.getFirstAsync('SELECT count(*) as count FROM levels;');

@@ -6,8 +6,20 @@ import { DailySet } from '../models/DailySet';
 import { UserProfile } from '../models/UserProfile';
 import { clearLegacyLocalUserData } from '../db/database';
 import { generateUUID } from '../utils/uuid';
-import { requireSupabase, supabase } from './supabase';
+import { isSupabaseConfigured, requireSupabase, supabase } from './supabase';
 import { runAccountDeletion } from './accountDeletionFlow';
+import {
+  isGuestId,
+  getSavedGuestProfile,
+  saveGuestProfile,
+  getGuestDailySet,
+  saveGuestDailySet,
+  getGuestDailySets,
+  getGuestDailySetsByDates,
+  recordGuestXp,
+  getGuestXpTransactions,
+  clearGuestSession,
+} from '../utils/guestSession';
 
 function raise(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
@@ -81,6 +93,9 @@ export function profileToRow(profile: UserProfile) {
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+  if (isGuestId(userId) || !isSupabaseConfigured) {
+    return getSavedGuestProfile();
+  }
   const { data, error } = await requireSupabase()
     .from('user_profiles')
     .select('*')
@@ -91,6 +106,10 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 }
 
 export async function saveUserProfile(profile: UserProfile): Promise<void> {
+  if (isGuestId(profile.id) || profile.authProvider === 'guest' || !isSupabaseConfigured) {
+    await saveGuestProfile(profile);
+    return;
+  }
   const { error } = await requireSupabase()
     .from('user_profiles')
     .upsert(profileToRow(profile), { onConflict: 'id' });
@@ -98,6 +117,14 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
 }
 
 export async function updateUserProfile(userId: string, patch: Partial<UserProfile>): Promise<void> {
+  if (isGuestId(userId) || !isSupabaseConfigured) {
+    const current = await getSavedGuestProfile();
+    if (current) {
+      const merged = { ...current, ...patch };
+      await saveGuestProfile(merged);
+    }
+    return;
+  }
   const columns: Record<keyof UserProfile, string> = {
     id: 'id', goal: 'goal', equipmentAvailable: 'equipment_available',
     experienceLevel: 'experience_level', currentXP: 'current_xp',
@@ -145,6 +172,9 @@ export function dailySetToRow(set: DailySet) {
 
 export async function getDailySet(userId: string, date: Date = new Date()): Promise<DailySet | null> {
   const day = formatISO(date, { representation: 'date' });
+  if (isGuestId(userId) || !isSupabaseConfigured) {
+    return getGuestDailySet(userId, day);
+  }
   const { data, error } = await requireSupabase()
     .from('daily_sets').select('*').eq('user_id', userId).eq('date', day).maybeSingle();
   raise(error);
@@ -152,6 +182,9 @@ export async function getDailySet(userId: string, date: Date = new Date()): Prom
 }
 
 export async function getDailySets(userId: string, limit = 30): Promise<DailySet[]> {
+  if (isGuestId(userId) || !isSupabaseConfigured) {
+    return getGuestDailySets(userId, limit);
+  }
   const { data, error } = await requireSupabase()
     .from('daily_sets').select('*').eq('user_id', userId)
     .order('date', { ascending: false }).limit(limit);
@@ -161,6 +194,9 @@ export async function getDailySets(userId: string, limit = 30): Promise<DailySet
 
 export async function getDailySetsByDates(userId: string, dates: string[]): Promise<DailySet[]> {
   if (!dates.length) return [];
+  if (isGuestId(userId) || !isSupabaseConfigured) {
+    return getGuestDailySetsByDates(userId, dates);
+  }
   const { data, error } = await requireSupabase()
     .from('daily_sets').select('*').eq('user_id', userId).in('date', dates);
   raise(error);
@@ -168,12 +204,20 @@ export async function getDailySetsByDates(userId: string, dates: string[]): Prom
 }
 
 export async function saveDailySet(set: DailySet): Promise<void> {
+  if (isGuestId(set.userId) || !isSupabaseConfigured) {
+    await saveGuestDailySet(set);
+    return;
+  }
   const { error } = await requireSupabase()
     .from('daily_sets').upsert(dailySetToRow(set), { onConflict: 'user_id,date' });
   raise(error);
 }
 
 export async function updateDailySet(set: DailySet): Promise<void> {
+  if (isGuestId(set.userId) || !isSupabaseConfigured) {
+    await saveGuestDailySet(set);
+    return;
+  }
   const { error } = await requireSupabase().from('daily_sets')
     .update({ exercises: set.exercises, total_xp_earned: set.totalXpEarned, completed_at: set.completedAt ?? null })
     .eq('id', set.id).eq('user_id', set.userId);
@@ -189,6 +233,10 @@ export interface XpTransaction {
 }
 
 export async function recordXp(userId: string, id: string, amount: number, source: string): Promise<void> {
+  if (isGuestId(userId) || !isSupabaseConfigured) {
+    await recordGuestXp(userId, id, amount, source);
+    return;
+  }
   const { error } = await requireSupabase().from('xp_transactions').insert({
     id, user_id: userId, amount, source,
   });
@@ -219,6 +267,9 @@ function validTimestamp(value: unknown): value is string {
 }
 
 export async function getXpTransactions(userId: string, limit = 30): Promise<XpTransaction[]> {
+  if (isGuestId(userId) || !isSupabaseConfigured) {
+    return getGuestXpTransactions(userId, limit);
+  }
   const { data, error } = await requireSupabase().from('xp_transactions')
     .select('id,user_id,created_at,amount,source').eq('user_id', userId)
     .order('created_at', { ascending: false }).limit(limit);
@@ -229,6 +280,9 @@ export async function getXpTransactions(userId: string, limit = 30): Promise<XpT
 }
 
 export async function getConsentAcceptedAt(userId: string): Promise<string | null> {
+  if (isGuestId(userId) || !isSupabaseConfigured) {
+    return new Date().toISOString();
+  }
   const { data, error } = await requireSupabase().from('user_consents')
     .select('accepted_at').eq('user_id', userId).maybeSingle();
   raise(error);
@@ -236,6 +290,7 @@ export async function getConsentAcceptedAt(userId: string): Promise<string | nul
 }
 
 export async function saveConsentAcceptedAt(userId: string, acceptedAt: string): Promise<void> {
+  if (isGuestId(userId) || !isSupabaseConfigured) return;
   const { error } = await requireSupabase().from('user_consents')
     .upsert({
       user_id: userId,
@@ -249,6 +304,7 @@ export async function saveConsentAcceptedAt(userId: string, acceptedAt: string):
 const PENDING_DELETION_CLEANUP_KEY = 'fitness_level_pending_deletion_cleanup';
 
 async function clearDeletedAccountDeviceData(): Promise<void> {
+  await clearGuestSession();
   await clearLegacyLocalUserData();
   if (Platform.OS !== 'web') await Notifications.cancelAllScheduledNotificationsAsync();
 }
@@ -274,29 +330,31 @@ export async function requestAccountDeletion() {
     deleteCloudAccount: async () => {
       const { error } = await requireSupabase().functions.invoke('delete-account', { body: {} });
       if (error) throw new Error('The account deletion request could not be completed. Check your connection and retry.');
-      // Store a recovery marker before local cleanup; it is cleared only after all device data is removed.
       try {
         await SecureStore.setItemAsync(PENDING_DELETION_CLEANUP_KEY, 'pending');
         recoveryMarkerSaved = true;
-      } catch {
-        // Continue cleanup even if secure local storage is unavailable.
-      }
+      } catch {}
     },
-    clearLocalRecords: clearLegacyLocalUserData,
+    clearLocalRecords: async () => {
+      await clearGuestSession();
+      await clearLegacyLocalUserData();
+    },
     cancelReminders: async () => {
       if (Platform.OS !== 'web') await Notifications.cancelAllScheduledNotificationsAsync();
     },
     signOutLocal: async () => {
-      const { error } = await supabase.auth.signOut({ scope: 'local' });
-      if (error) throw error;
+      await clearGuestSession();
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch {}
+      }
     },
   });
   if (result.localRecordsCleared && result.remindersCancelled && recoveryMarkerSaved) {
     try {
       await SecureStore.deleteItemAsync(PENDING_DELETION_CLEANUP_KEY);
-    } catch {
-      // A stale marker only causes safe idempotent cleanup to run again at next launch.
-    }
+    } catch {}
   }
   return { ...result, recoveryMarkerSaved };
 }
