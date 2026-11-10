@@ -16,13 +16,32 @@ export default function LoginScreen() {
   const [message, setMessage] = useState('');
   const [document, setDocument] = useState<LegalDocument>(null);
 
+  // Guest sign-in works locally without Supabase
+  const runGuest = async () => {
+    if (!canStartAuthentication(documentsAcknowledged)) {
+      setMessage('Please read and acknowledge the Privacy Policy and Terms to continue.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      await signInAsGuest();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Please try again.';
+      setMessage(detail);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Google / Email sign-in require Supabase
   const run = async (action: () => Promise<void>) => {
     if (!canStartAuthentication(documentsAcknowledged)) {
-      setMessage('Acknowledge the Privacy Policy and Terms to continue.');
+      setMessage('Please read and acknowledge the Privacy Policy and Terms to continue.');
       return;
     }
     if (!isSupabaseConfigured) {
-      setMessage('Connect a Supabase project to enable sign-in. Add its URL and publishable key to your app environment.');
+      setMessage('Google and email sign-in require Supabase to be configured. Use "Continue as guest" to get started without an account.');
       return;
     }
     setBusy(true);
@@ -93,9 +112,9 @@ export default function LoginScreen() {
           style={styles.guestButton}
           accessibilityRole="button"
           accessibilityLabel="Continue as guest"
-          accessibilityHint="Creates an anonymous Supabase account for this device"
+          accessibilityHint="Creates a local account on this device — no sign-in required"
           disabled={busy || !canStartAuthentication(documentsAcknowledged)}
-          onPress={() => void run(signInAsGuest)}
+          onPress={() => void runGuest()}
         >
           <Text style={styles.guestText}>Continue as guest</Text>
         </TouchableOpacity>

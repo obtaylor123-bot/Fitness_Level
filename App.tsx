@@ -11,7 +11,6 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import OnboardingFlow from './src/screens/OnboardingFlow';
 import ConsentScreen from './src/screens/ConsentScreen';
 import LoginScreen from './src/screens/LoginScreen';
-import LegacyImportScreen from './src/screens/LegacyImportScreen';
 import * as Notifications from 'expo-notifications';
 import { scheduleDailyReminder } from './src/services/reminders';
 import { colors } from './src/theme';
@@ -23,7 +22,7 @@ import { retryPendingDeletionCleanup } from './src/services/userData';
 const Tab = createBottomTabNavigator();
 
 export default function App() {
-  const { user, authUserId, authReady, hydrated, consentAcceptedAt, legacyImportAvailable } = useStore();
+  const { user, authUserId, authReady, hydrated, consentAcceptedAt } = useStore();
   const { setAuthUserId, setAuthReady, clearUser, setConsentAcceptedAt, setHydrated, setLegacyImportAvailable } = useStore();
 
   useEffect(() => {
@@ -33,13 +32,35 @@ export default function App() {
       } catch {
         console.warn('Could not finish pending on-device account cleanup.');
       }
+
       if (isSupabaseConfigured) {
+        // Supabase path: restore existing cloud session
         const { data, error } = await supabase.auth.getSession();
         if (error) console.warn('Could not restore the sign-in session.');
-        setAuthUserId(data.session?.user.id ?? null);
+        const cloudUserId = data.session?.user.id ?? null;
+        setAuthUserId(cloudUserId);
+        setAuthReady(true);
+      } else {
+        // Local-only path: check if a local guest profile already exists
+        try {
+          const { executeSql, runMigrations } = require('./src/db/database');
+          await runMigrations();
+          const result = await executeSql('SELECT id FROM user_profile LIMIT 1;');
+          if (result.rows.length > 0) {
+            const localId = result.rows.item(0).id as string;
+            setAuthUserId(localId);
+            // Skip consent screen for returning local guests
+            setConsentAcceptedAt(new Date().toISOString());
+          }
+        } catch {
+          // No existing profile — user will see LoginScreen
+        }
+        setAuthReady(true);
       }
-      setAuthReady(true);
     })();
+
+    // Only subscribe to Supabase auth changes when configured
+    if (!isSupabaseConfigured) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthUserId(session?.user.id ?? null);
       setAuthReady(true);
@@ -53,12 +74,13 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Hydrate store when authUserId is known
   useEffect(() => {
     if (!authReady || !authUserId) return;
     void rehydrateStore(authUserId).catch(() => undefined);
   }, [authReady, authUserId]);
 
-  // Restore a reminder only when it was explicitly enabled. Never ask permission on launch.
+  // Schedule notification only if explicitly enabled
   useEffect(() => {
     (async () => {
       if (!hydrated || Platform.OS === 'web' || !user?.notificationsEnabled) return;
@@ -73,18 +95,20 @@ export default function App() {
     })();
   }, [hydrated, user?.notificationsEnabled, user?.notificationTime]);
 
+  // Show spinner while auth is resolving, or while profile is loading after sign-in
   if (!authReady || (authUserId && !hydrated)) {
     return <View style={styles.loading}><ActivityIndicator color={colors.accent} size="large" /></View>;
   }
 
+  // Not signed in → Login screen
   if (!authUserId) return <LoginScreen />;
 
-  if (!consentAcceptedAt) {
+  // Supabase users need consent screen; local guests skip it (consent implicit)
+  if (isSupabaseConfigured && !consentAcceptedAt) {
     return <ConsentScreen />;
   }
 
-  if (legacyImportAvailable) return <LegacyImportScreen />;
-
+  // Need to set up workout profile
   if (!user) {
     return <OnboardingFlow />;
   }
